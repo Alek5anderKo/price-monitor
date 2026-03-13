@@ -1,0 +1,12 @@
+# Python
+venv/
+
+# secrets
+.env
+accounts.json
+
+# logs
+logs/
+
+# cache
+__pycache__/

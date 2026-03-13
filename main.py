@@ -1,0 +1,1 @@
+print("Price Monitor started")
