@@ -38,9 +38,13 @@ def validate_configuration(accounts):
             logging.warning("Account with marketplace %s: missing name; will be skipped", marketplace)
         if marketplace == MARKETPLACE_OZON:
             if not acc.get("client_id") or not acc.get("api_key"):
+                cid_env = acc.get("client_id_env") or "client_id_env"
+                key_env = acc.get("api_key_env") or "api_key_env"
                 logging.warning(
-                    "Ozon account %s: missing client_id or api_key in .env; will be skipped",
+                    "Ozon account %s: missing client_id or api_key (set %s and %s in .env); will be skipped",
                     name,
+                    cid_env,
+                    key_env,
                 )
 
     logging.info("Configuration validation completed")
