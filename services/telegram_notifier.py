@@ -1,11 +1,15 @@
-from dotenv import load_dotenv
+import logging
 import os
+
 import requests
+from dotenv import load_dotenv
 
 load_dotenv()
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_IDS = os.getenv("TELEGRAM_CHAT_IDS", "").split(",")
+
+logger = logging.getLogger(__name__)
 
 
 def send_telegram_alert(message):
@@ -35,7 +39,7 @@ def send_telegram_alert(message):
             )
 
             if response.status_code != 200:
-                print("Telegram API error:", response.text)
+                logger.warning("Telegram API error: %s", response.text)
 
         except requests.RequestException as e:
-            print("Telegram request failed:", e)
+            logger.error("Telegram request failed: %s", e)

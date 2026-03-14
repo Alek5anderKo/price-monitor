@@ -1,3 +1,5 @@
+import logging
+
 from services.config_loader import load_config
 from clients.ozon_client import get_products, get_prices
 from database.db import init_db, save_prices
@@ -8,6 +10,8 @@ from services.telegram_notifier import send_telegram_alert
 
 def main():
 
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
     init_db()
 
     accounts = load_config()
@@ -17,10 +21,10 @@ def main():
         if acc["marketplace"] != "ozon":
             continue
 
-        print(f"Checking: {acc['name']}")
+        logging.info("Checking: %s", acc["name"])
 
         if not acc.get("client_id") or not acc.get("api_key"):
-            print("API keys not set, skipping account")
+            logging.warning("API keys not set, skipping account")
             continue
 
         try:
@@ -29,7 +33,7 @@ def main():
 
             if not products:
 
-                print("Loading products from API...")
+                logging.info("Loading products from API...")
 
                 products = get_products(
                     acc["client_id"],
@@ -39,9 +43,9 @@ def main():
                 save_sku(acc["name"], products)
 
             else:
-                print("Products loaded from cache")
+                logging.info("Products loaded from cache")
 
-            print(f"Products found: {len(products)}")
+            logging.info("Products found: %s", len(products))
 
             prices = get_prices(
                 acc["client_id"],
@@ -49,7 +53,7 @@ def main():
                 products
             )
 
-            print(f"Prices loaded: {len(prices)}")
+            logging.info("Prices loaded: %s", len(prices))
 
             # анализ изменений цен
             alerts = analyze_prices(
@@ -60,11 +64,11 @@ def main():
 
             if alerts:
 
-                print("PRICE ALERTS FOUND:")
+                logging.warning("PRICE ALERTS FOUND: %s", len(alerts))
 
                 for alert in alerts:
 
-                    print(alert)
+                    logging.info("Alert: %s", alert)
 
                     message = f"""
 ⚠ PRICE ALERT
@@ -90,10 +94,10 @@ Type: {alert['type']}
                 prices
             )
 
-            print("Prices saved to database")
+            logging.info("Prices saved to database")
 
         except Exception as e:
-            print(f"Account {acc.get('name', '?')} failed: {e}")
+            logging.error("Account %s failed: %s", acc.get("name", "?"), e)
             continue
 
 

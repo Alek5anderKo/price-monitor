@@ -21,3 +21,4 @@ logs/
 # -------------------
 prices.db
 cache_sku.json
+diff.txt

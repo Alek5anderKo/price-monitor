@@ -1,9 +1,11 @@
 import json
+import logging
 import os
 from datetime import datetime, timedelta
 
 
 CACHE_FILE = "cache_sku.json"
+logger = logging.getLogger(__name__)
 
 
 def load_cache():
@@ -24,7 +26,7 @@ def save_cache(data):
         with open(CACHE_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f)
     except OSError as e:
-        print(f"Cache write failed: {e}")
+        logger.error("Cache write failed: %s", e)
         raise
 
 

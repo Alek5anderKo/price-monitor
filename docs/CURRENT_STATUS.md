@@ -25,4 +25,4 @@ Hybrid:
 - Keep docs updated after each completed step
 
 ## Last completed milestone
-Stage 2 (optimization): bulk-запросы в db/price_analyzer (2 запроса вместо 2N). Минимальная очистка: в bulk-запросах явные ссылки на столбцы (ph.account в WHERE), удалён временный файл diff.txt.
+Stage 2 (optimization): введено базовое логирование вместо print. В main.py — logging.basicConfig при старте, ключевые сообщения переведены на logging.info/warning/error. В services/telegram_notifier и services/sku_cache — logger = getLogger(__name__), ошибки через logger.warning/error. config_loader и database/db без print не менялись. Поведение сохранено.
