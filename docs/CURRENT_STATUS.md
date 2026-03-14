@@ -25,4 +25,4 @@ Hybrid:
 - Keep docs updated after each completed step
 
 ## Last completed milestone
-Stage 2 (optimization): введено базовое логирование вместо print. В main.py — logging.basicConfig при старте, ключевые сообщения переведены на logging.info/warning/error. В services/telegram_notifier и services/sku_cache — logger = getLogger(__name__), ошибки через logger.warning/error. config_loader и database/db без print не менялись. Поведение сохранено.
+Stage 2 (optimization): в main.py — безопасный доступ к аккаунту (marketplace/name через .get(), ранний continue при отсутствии name), константа MARKETPLACE_OZON вместо литерала "ozon", использование переменных marketplace/name вместо повторных acc["marketplace"]/acc["name"]. sku_cache, telegram_notifier, config_loader без изменений. Поведение сохранено.

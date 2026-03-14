@@ -10,7 +10,8 @@
 7. ~~Stage 2: оптимизация запросов к БД в price_analyzer (bulk-запросы вместо 2N)~~
 8. ~~Минимальная очистка после Stage 2 (явные ph.account в SQL, удаление diff.txt)~~
 9. ~~Stage 2: базовое логирование (basicConfig в main, замена print в main, telegram_notifier, sku_cache)~~
-10. Продолжить Stage 2 по CHECKLIST: константы, при необходимости — батчинг в save_prices
+10. ~~Stage 2: минимальная очистка main (безопасный доступ к acc, константа MARKETPLACE_OZON)~~
+11. Продолжить Stage 2 по CHECKLIST: при необходимости — батчинг в save_prices
 
 ## Rule for every work session
 At the start:

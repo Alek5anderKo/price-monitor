@@ -7,6 +7,8 @@ from services.sku_cache import get_cached_sku, save_sku
 from services.price_analyzer import analyze_prices
 from services.telegram_notifier import send_telegram_alert
 
+MARKETPLACE_OZON = "ozon"
+
 
 def main():
 
@@ -18,10 +20,14 @@ def main():
 
     for acc in accounts:
 
-        if acc["marketplace"] != "ozon":
+        marketplace = acc.get("marketplace")
+        name = acc.get("name")
+        if marketplace != MARKETPLACE_OZON:
+            continue
+        if not name:
             continue
 
-        logging.info("Checking: %s", acc["name"])
+        logging.info("Checking: %s", name)
 
         if not acc.get("client_id") or not acc.get("api_key"):
             logging.warning("API keys not set, skipping account")
@@ -29,7 +35,7 @@ def main():
 
         try:
 
-            products = get_cached_sku(acc["name"])
+            products = get_cached_sku(name)
 
             if not products:
 
@@ -40,7 +46,7 @@ def main():
                     acc["api_key"]
                 )
 
-                save_sku(acc["name"], products)
+                save_sku(name, products)
 
             else:
                 logging.info("Products loaded from cache")
@@ -56,11 +62,7 @@ def main():
             logging.info("Prices loaded: %s", len(prices))
 
             # анализ изменений цен
-            alerts = analyze_prices(
-                acc["marketplace"],
-                acc["name"],
-                prices
-            )
+            alerts = analyze_prices(marketplace, name, prices)
 
             if alerts:
 
@@ -73,8 +75,8 @@ def main():
                     message = f"""
 ⚠ PRICE ALERT
 
-Marketplace: {acc['marketplace']}
-Account: {acc['name']}
+Marketplace: {marketplace}
+Account: {name}
 
 SKU: {alert['sku']}
 
@@ -88,16 +90,12 @@ Type: {alert['type']}
                     send_telegram_alert(message)
 
             # сохраняем цены после анализа
-            save_prices(
-                acc["marketplace"],
-                acc["name"],
-                prices
-            )
+            save_prices(marketplace, name, prices)
 
             logging.info("Prices saved to database")
 
         except Exception as e:
-            logging.error("Account %s failed: %s", acc.get("name", "?"), e)
+            logging.error("Account %s failed: %s", name, e)
             continue
 
 
