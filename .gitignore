@@ -1,12 +1,23 @@
+# -------------------
 # Python
+# -------------------
 venv/
+__pycache__/
+*.pyc
 
+# -------------------
 # secrets
+# -------------------
 .env
 accounts.json
 
+# -------------------
 # logs
+# -------------------
 logs/
 
-# cache
-__pycache__/
+# -------------------
+# runtime data
+# -------------------
+prices.db
+cache_sku.json

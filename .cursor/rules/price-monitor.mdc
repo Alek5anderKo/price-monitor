@@ -1,0 +1,56 @@
+---
+alwaysApply: true
+---
+---
+description: Rules for the Price Monitor project
+globs:
+  - "**/*.py"
+alwaysApply: true
+---
+
+# Price Monitor Rules
+
+You are working on the Price Monitor project.
+
+## Main objective
+Build a stable and maintainable price monitoring system incrementally.
+
+## Mandatory workflow
+Before making changes:
+1. Read docs/PROJECT_CONTEXT.md
+2. Read docs/CURRENT_STATUS.md
+3. Read docs/NEXT_STEPS.md
+4. Read docs/CHECKLIST.md if task is about fixes/review
+5. Read only relevant code files before editing
+
+## Priorities
+1. Correctness first
+2. Then optimization
+3. Then new features
+
+## Code rules
+- Prefer small edits over large rewrites
+- Do not change architecture without explicit reason
+- Avoid duplicated DB logic
+- Use constants for repeated values
+- Add clear function boundaries
+- Add basic error handling where missing
+- Preserve backward compatibility unless change is intentional
+- Keep code simple and explicit
+
+## Documentation rules
+After meaningful changes:
+- update docs/CURRENT_STATUS.md
+- update docs/NEXT_STEPS.md
+
+## For database-related code
+- keep schema explicit
+- use context-safe connection handling where reasonable
+- validate inputs before insert/update
+- avoid silent failures
+
+## Output style
+When proposing changes:
+- explain what is wrong
+- explain why the fix is needed
+- propose minimal patch first
