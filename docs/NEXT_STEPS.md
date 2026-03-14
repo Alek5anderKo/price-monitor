@@ -7,7 +7,9 @@
 4. ~~Stage 1: connection/error handling в config_loader, sku_cache, telegram_notifier, init_db, get_last_price/get_day_start_price~~
 5. ~~Stage 1: устойчивость main по аккаунтам, save_prices при None/не-списке, cache write errors, telegram message/request errors~~
 6. ~~Stage 1: надёжность Telegram (timeout, RequestException, проверка status_code); save_prices при пустом prices~~
-7. При необходимости — оставшиеся пункты Stage 1 по CHECKLIST, затем этап 2 (оптимизация): константы, логирование
+7. ~~Stage 2: оптимизация запросов к БД в price_analyzer (bulk-запросы вместо 2N)~~
+8. ~~Минимальная очистка после Stage 2 (явные ph.account в SQL, удаление diff.txt)~~
+9. Продолжить Stage 2 по CHECKLIST: константы, логирование, при необходимости — батчинг в save_prices
 
 ## Rule for every work session
 At the start:

@@ -25,4 +25,4 @@ Hybrid:
 - Keep docs updated after each completed step
 
 ## Last completed milestone
-Stage 1 (correctness): save_prices — в начале функции добавлена проверка `if not prices: return` (защита от None и пустого списка). Telegram notifier уже имел timeout=10, try/except requests.RequestException и проверку response.status_code != 200 с выводом ошибки API.
+Stage 2 (optimization): bulk-запросы в db/price_analyzer (2 запроса вместо 2N). Минимальная очистка: в bulk-запросах явные ссылки на столбцы (ph.account в WHERE), удалён временный файл diff.txt.

@@ -29,6 +29,50 @@ def init_db():
         conn.close()
 
 
+def get_last_prices_bulk(marketplace, account):
+    """Возвращает словарь sku -> последняя цена по каждому SKU для marketplace/account."""
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT ph.sku, ph.price
+            FROM price_history ph
+            INNER JOIN (
+                SELECT marketplace, account, sku, MAX(created_at) AS max_ts
+                FROM price_history
+                WHERE marketplace = ? AND account = ?
+                GROUP BY marketplace, account, sku
+            ) t ON ph.marketplace = t.marketplace AND ph.account = t.account
+                AND ph.sku = t.sku AND ph.created_at = t.max_ts
+            WHERE ph.marketplace = ? AND ph.account = ?
+        """, (marketplace, account, marketplace, account))
+        return {row[0]: row[1] for row in cursor.fetchall()}
+    finally:
+        conn.close()
+
+
+def get_day_start_prices_bulk(marketplace, account, date_str):
+    """Возвращает словарь sku -> цена на начало дня date_str по каждому SKU."""
+    conn = sqlite3.connect(DB_NAME)
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT ph.sku, ph.price
+            FROM price_history ph
+            INNER JOIN (
+                SELECT marketplace, account, sku, MIN(created_at) AS min_ts
+                FROM price_history
+                WHERE marketplace = ? AND account = ? AND date(created_at) = ?
+                GROUP BY marketplace, account, sku
+            ) t ON ph.marketplace = t.marketplace AND ph.account = t.account
+                AND ph.sku = t.sku AND ph.created_at = t.min_ts
+            WHERE ph.marketplace = ? AND ph.account = ? AND date(ph.created_at) = ?
+        """, (marketplace, account, date_str, marketplace, account, date_str))
+        return {row[0]: row[1] for row in cursor.fetchall()}
+    finally:
+        conn.close()
+
+
 def _is_valid_price_item(item):
     """Проверка, что запись пригодна для сохранения в price_history."""
     if not isinstance(item, dict):

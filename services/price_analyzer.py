@@ -1,53 +1,16 @@
-import sqlite3
 from datetime import datetime
 
-from database.db import DB_NAME
-
-
-def get_last_price(marketplace, account, sku):
-
-    conn = sqlite3.connect(DB_NAME)
-    try:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT price
-            FROM price_history
-            WHERE marketplace = ?
-            AND account = ?
-            AND sku = ?
-            ORDER BY created_at DESC
-            LIMIT 1
-        """, (marketplace, account, sku))
-        row = cursor.fetchone()
-        return row[0] if row else None
-    finally:
-        conn.close()
-
-
-def get_day_start_price(marketplace, account, sku):
-
-    today = datetime.now().strftime("%Y-%m-%d")
-
-    conn = sqlite3.connect(DB_NAME)
-    try:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT price
-            FROM price_history
-            WHERE marketplace = ?
-            AND account = ?
-            AND sku = ?
-            AND date(created_at) = ?
-            ORDER BY created_at ASC
-            LIMIT 1
-        """, (marketplace, account, sku, today))
-        row = cursor.fetchone()
-        return row[0] if row else None
-    finally:
-        conn.close()
+from database.db import get_last_prices_bulk, get_day_start_prices_bulk
 
 
 def analyze_prices(marketplace, account, prices):
+
+    if not prices:
+        return []
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    last_prices = get_last_prices_bulk(marketplace, account)
+    day_start_prices = get_day_start_prices_bulk(marketplace, account, today)
 
     alerts = []
 
@@ -62,8 +25,8 @@ def analyze_prices(marketplace, account, prices):
         except (TypeError, ValueError):
             continue
 
-        last_price = get_last_price(marketplace, account, sku)
-        day_start_price = get_day_start_price(marketplace, account, sku)
+        last_price = last_prices.get(sku)
+        day_start_price = day_start_prices.get(sku)
 
         if last_price is None or day_start_price is None or last_price == 0 or day_start_price == 0:
             continue
