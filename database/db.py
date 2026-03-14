@@ -21,7 +21,7 @@ def init_db():
         )
         """)
         cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_price_lookup
+        CREATE INDEX IF NOT EXISTS idx_price_history_lookup
         ON price_history(marketplace, account, sku, created_at)
         """)
         conn.commit()
@@ -94,23 +94,22 @@ def save_prices(marketplace, account, prices):
     if not prices:
         return
 
+    rows = [
+        (marketplace, account, item["sku"], item["product_id"], item["price"])
+        for item in prices
+        if _is_valid_price_item(item)
+    ]
+    if not rows:
+        return
+
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     try:
-        for item in prices:
-            if not _is_valid_price_item(item):
-                continue
-            cursor.execute("""
-                INSERT INTO price_history
-                (marketplace, account, sku, product_id, price)
-                VALUES (?, ?, ?, ?, ?)
-            """, (
-                marketplace,
-                account,
-                item["sku"],
-                item["product_id"],
-                item["price"]
-            ))
+        cursor.executemany("""
+            INSERT INTO price_history
+            (marketplace, account, sku, product_id, price)
+            VALUES (?, ?, ?, ?, ?)
+        """, rows)
         conn.commit()
     except Exception:
         conn.rollback()

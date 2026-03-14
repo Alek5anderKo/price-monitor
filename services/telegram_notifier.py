@@ -35,7 +35,7 @@ def send_telegram_alert(message):
             response = requests.post(
                 url,
                 json=payload,
-                timeout=10
+                timeout=20
             )
 
             if response.status_code != 200:

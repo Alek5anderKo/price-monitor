@@ -24,6 +24,9 @@
 - [ ] Add comparison with previous prices
 - [ ] Add change detection
 - [ ] Add reporting / alert preparation
-- [ ] Add scheduling strategy
+- [x] Scheduling strategy: external scheduler (Task Scheduler / cron); app is single-run entry point
+- [x] Overlapping run protection: lock file so a second run exits safely
+- [x] Multi-account config: format documented, name as unique id, safe handling in one run
 - [ ] Add tests
 - [ ] Prepare deployment approach
+- [ ] Future: ready-to-use Windows Task Scheduler setup guide for this project

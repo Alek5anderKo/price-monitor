@@ -1,6 +1,26 @@
+import os
 from datetime import datetime
 
+from dotenv import load_dotenv
+
 from database.db import get_last_prices_bulk, get_day_start_prices_bulk
+
+load_dotenv()
+
+
+def _float_env(name, default):
+    """Read float from env; on missing or invalid value return default."""
+    try:
+        v = os.getenv(name)
+        if v is None or str(v).strip() == "":
+            return default
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+
+ALERT_THRESHOLD_PERCENT = _float_env("ALERT_THRESHOLD_PERCENT", 1.0)
+MAX_ALERT_CHANGE_PERCENT = _float_env("MAX_ALERT_CHANGE_PERCENT", 100.0)
 
 
 def analyze_prices(marketplace, account, prices):
@@ -24,6 +44,8 @@ def analyze_prices(marketplace, account, prices):
             current_price = float(current_price)
         except (TypeError, ValueError):
             continue
+        if current_price <= 0:
+            continue
 
         last_price = last_prices.get(sku)
         day_start_price = day_start_prices.get(sku)
@@ -35,8 +57,7 @@ def analyze_prices(marketplace, account, prices):
         change_day = (current_price - day_start_price) / day_start_price * 100
 
         # изменение относительно последней цены
-        if abs(change_last) > 1:
-
+        if ALERT_THRESHOLD_PERCENT < abs(change_last) <= MAX_ALERT_CHANGE_PERCENT:
             alerts.append({
                 "type": "last_price",
                 "sku": sku,
@@ -46,8 +67,7 @@ def analyze_prices(marketplace, account, prices):
             })
 
         # изменение относительно начала дня
-        if abs(change_day) > 1:
-
+        if ALERT_THRESHOLD_PERCENT < abs(change_day) <= MAX_ALERT_CHANGE_PERCENT:
             alerts.append({
                 "type": "day_start",
                 "sku": sku,

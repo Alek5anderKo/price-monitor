@@ -25,4 +25,8 @@ Hybrid:
 - Keep docs updated after each completed step
 
 ## Last completed milestone
-Stage 2 (optimization): в main.py — безопасный доступ к аккаунту (marketplace/name через .get(), ранний continue при отсутствии name), константа MARKETPLACE_OZON вместо литерала "ozon", использование переменных marketplace/name вместо повторных acc["marketplace"]/acc["name"]. sku_cache, telegram_notifier, config_loader без изменений. Поведение сохранено.
+- Пороги алертов вынесены в .env: `ALERT_THRESHOLD_PERCENT`, `ALERT_COOLDOWN_MINUTES`, `MAX_ALERT_CHANGE_PERCENT` (дефолты: 1, 60, 100); при отсутствии или неверном значении используется дефолт.
+- Стартовое уведомление в Telegram: одно сообщение в начале запуска (время, число аккаунтов), если аккаунты есть и Telegram настроен; при ошибке отправки — только лог.
+- Опциональный итог запуска в Telegram: переменная `SEND_RUN_SUMMARY=true` включает отправку сводки в конце запуска; по умолчанию отключено.
+- Price Intelligence Layer (MVP): модуль `services/price_intelligence.py` (чтение только из SQLite), отчёт `report_price_intelligence.py` — топ изменений цен, самые активные SKU, флаги аномалий (спред %, частая смена цен) за последние 24 часа; мониторинг и отчёт разделены.
+- Надёжность API и аналитики: в Ozon-клиенте добавлены повторы запросов (до 3 попыток, пауза 2 с, логирование), таймаут 20 с для Ozon и Telegram; в init_db добавлен индекс `idx_price_history_lookup` для запросов по (marketplace, account, sku, created_at).
