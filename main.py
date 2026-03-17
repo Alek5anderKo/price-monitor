@@ -7,6 +7,7 @@ from datetime import datetime
 from services.config_loader import load_config
 from services.config_validator import validate_configuration
 from clients.ozon_client import get_products, get_prices
+from clients.wb_client import get_products as wb_get_products, get_prices as wb_get_prices
 from database.db import init_db, save_prices
 from services.sku_cache import get_cached_sku, save_sku
 from services.price_analyzer import analyze_prices
@@ -83,12 +84,61 @@ def main():
             marketplace = acc.get("marketplace")
             name = acc.get("name")
             if marketplace == MARKETPLACE_WILDBERIES:
-                logging.info(
-                    "Account %s (%s) is configured but Wildberries client is not implemented yet, skipping",
-                    name,
-                    marketplace,
-                )
-                stats["accounts_skipped"] += 1
+                if not acc.get("api_key"):
+                    logging.warning("Wildberries account %s: api_key missing in .env; skipping", name)
+                    stats["accounts_skipped"] += 1
+                    continue
+                logging.info("Checking: %s (Wildberries)", name)
+                try:
+                    products = wb_get_products(acc["api_key"])
+                    logging.info("Products found: %s", len(products))
+                    if not products:
+                        logging.warning("Account %s (%s) returned 0 products", name, marketplace)
+                    prices = wb_get_prices(acc["api_key"], products)
+                    logging.info("Prices loaded: %s", len(prices))
+                    stats["prices_fetched_total"] += len(prices) if prices else 0
+                    if not prices:
+                        logging.warning("Account %s (%s) returned 0 prices", name, marketplace)
+                    alerts = analyze_prices(marketplace, name, prices)
+                    if alerts:
+                        stats["alerts_detected_total"] += len(alerts)
+                        logging.warning("PRICE ALERTS FOUND: %s", len(alerts))
+                        for alert in alerts:
+                            logging.info("Alert: %s", alert)
+                            sku = alert["sku"]
+                            new_price = alert["new_price"]
+                            if not should_send_alert(marketplace, name, sku, new_price):
+                                stats["alerts_suppressed_total"] += 1
+                                continue
+                            if DRY_RUN:
+                                logging.info("DRY RUN: alert detected but not sent")
+                                continue
+                            message = f"""
+⚠ PRICE ALERT
+
+Marketplace: {marketplace}
+Account: {name}
+
+SKU: {sku}
+
+Old price: {alert['old_price']}
+New price: {new_price}
+
+Change: {alert['change']}%
+Type: {alert['type']}
+"""
+                            send_telegram_alert(message)
+                            update_alert_state(marketplace, name, sku, new_price)
+                            stats["alerts_sent_total"] += 1
+                    if not DRY_RUN:
+                        save_prices(marketplace, name, prices)
+                        logging.info("Prices saved to database")
+                    else:
+                        logging.info("DRY RUN: prices not saved to database")
+                    stats["accounts_processed"] += 1
+                except Exception as e:
+                    logging.warning("Account %s (Wildberries) failed: %s", name, e)
+                    stats["accounts_skipped"] += 1
                 continue
             if marketplace != MARKETPLACE_OZON:
                 logging.info("Skipping unsupported marketplace: %s (account %s)", marketplace, name)

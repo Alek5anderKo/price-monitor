@@ -27,6 +27,7 @@
 24. ~~Стартовое уведомление в Telegram; опциональный итог запуска (SEND_RUN_SUMMARY)~~
 25. ~~Price Intelligence MVP: price_intelligence.py + report_price_intelligence.py (отчёт за 24 ч, без интеграции в main)~~
 26. ~~API retry logic (Ozon), API timeout 20 s (Ozon + Telegram), индекс БД для аналитики~~
+27. ~~Wildberries: базовый клиент (wb_client.py), интеграция в main~~
 
 ## Rule for every work session
 At the start:
@@ -36,8 +37,9 @@ At the start:
 - read relevant code files
 
 Future:
-- добавить поддержку нескольких маркетплейсов (Ozon #2, Wildberries)
+- добавить поддержку нескольких маркетплейсов (Ozon #2, дополнительные аккаунты WB)
 - возможно внедрить adapter layer для marketplace API
+- **Wildberries:** пагинация cards/list и чанки nmList для цен реализованы. Дальше: мониторинг остатков, учёт лимитов/rate limit, стабильность API
 - **SEND_STARTUP_MESSAGE:** опция true/false для включения/отключения стартового уведомления в Telegram
 - **Ozon pagination:** пагинация при >1000 товаров/цен (last_id для products, чанки для prices)
 - **Базовые автотесты:** pytest для config_loader, валидации price_history, price_analyzer, alert_state

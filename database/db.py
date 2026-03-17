@@ -46,7 +46,7 @@ def get_last_prices_bulk(marketplace, account):
                 AND ph.sku = t.sku AND ph.created_at = t.max_ts
             WHERE ph.marketplace = ? AND ph.account = ?
         """, (marketplace, account, marketplace, account))
-        return {row[0]: row[1] for row in cursor.fetchall()}
+        return {str(row[0]): row[1] for row in cursor.fetchall()}
     finally:
         conn.close()
 
@@ -68,7 +68,7 @@ def get_day_start_prices_bulk(marketplace, account, date_str):
                 AND ph.sku = t.sku AND ph.created_at = t.min_ts
             WHERE ph.marketplace = ? AND ph.account = ? AND date(ph.created_at) = ?
         """, (marketplace, account, date_str, marketplace, account, date_str))
-        return {row[0]: row[1] for row in cursor.fetchall()}
+        return {str(row[0]): row[1] for row in cursor.fetchall()}
     finally:
         conn.close()
 
@@ -95,7 +95,7 @@ def save_prices(marketplace, account, prices):
         return
 
     rows = [
-        (marketplace, account, item["sku"], item["product_id"], item["price"])
+        (marketplace, account, str(item["sku"]), item["product_id"], item["price"])
         for item in prices
         if _is_valid_price_item(item)
     ]

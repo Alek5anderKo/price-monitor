@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import datetime
 
@@ -6,6 +7,8 @@ from dotenv import load_dotenv
 from database.db import get_last_prices_bulk, get_day_start_prices_bulk
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 def _float_env(name, default):
@@ -36,7 +39,7 @@ def analyze_prices(marketplace, account, prices):
 
     for item in prices:
 
-        sku = item.get("sku")
+        sku = str(item.get("sku")) if item.get("sku") is not None else None
         current_price = item.get("price")
         if sku is None or current_price is None:
             continue
@@ -51,6 +54,12 @@ def analyze_prices(marketplace, account, prices):
         day_start_price = day_start_prices.get(sku)
 
         if last_price is None or day_start_price is None or last_price == 0 or day_start_price == 0:
+            logger.debug(
+                "Skipping SKU %s: last_price=%s day_start_price=%s",
+                sku,
+                last_price,
+                day_start_price,
+            )
             continue
 
         change_last = (current_price - last_price) / last_price * 100
