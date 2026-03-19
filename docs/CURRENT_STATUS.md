@@ -25,7 +25,7 @@ Hybrid:
 - Keep docs updated after each completed step
 
 ## Last completed milestone
-- Пороги алертов вынесены в .env: `ALERT_THRESHOLD_PERCENT`, `ALERT_COOLDOWN_MINUTES`, `MAX_ALERT_CHANGE_PERCENT` (дефолты: 1, 60, 100); при отсутствии или неверном значении используется дефолт.
+- Пороги алертов вынесены в .env: 'LAST_PRICE_ALERT_THRESHOLD_PERCENT', 'DAY_START_ALERT_THRESHOLD_PERCENT', `ALERT_COOLDOWN_MINUTES`, `MAX_ALERT_CHANGE_PERCENT` (дефолты: 10, 20, 60, 100); при отсутствии или неверном значении используется дефолт.
 - Стартовое уведомление в Telegram: одно сообщение в начале запуска (время, число аккаунтов), если аккаунты есть и Telegram настроен; при ошибке отправки — только лог.
 - Опциональный итог запуска в Telegram: переменная `SEND_RUN_SUMMARY=true` включает отправку сводки в конце запуска; по умолчанию отключено.
 - Price Intelligence Layer (MVP): модуль `services/price_intelligence.py` (чтение только из SQLite), отчёт `report_price_intelligence.py` — топ изменений цен, самые активные SKU, флаги аномалий (спред %, частая смена цен) за последние 24 часа; мониторинг и отчёт разделены.
