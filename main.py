@@ -13,7 +13,7 @@ from services.sku_cache import get_cached_sku, save_sku
 from services.price_analyzer import analyze_prices
 from services.telegram_notifier import send_telegram_alert
 from services.alert_state import should_send_alert, update_alert_state
-import services.run_lock as run_lock
+from services.run_lock import acquire_lock, release_lock
 
 MARKETPLACE_OZON = "ozon"
 MARKETPLACE_WILDBERIES = "wildberries"
@@ -44,11 +44,8 @@ def _setup_logging():
 
 def main():
 
+    acquire_lock()
     _setup_logging()
-
-    if not run_lock.acquire():
-        logging.warning("Another run is active (lock file exists). Exiting.")
-        sys.exit(1)
 
     try:
         init_db()
@@ -271,7 +268,7 @@ Type: {alert['type']}
                 logging.error("Run summary Telegram notification failed: %s", e)
         logging.info("Run completed")
     finally:
-        run_lock.release()
+        release_lock()
 
 
 if __name__ == "__main__":

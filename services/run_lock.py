@@ -1,32 +1,31 @@
-"""Простая блокировка через файл: защита от одновременного запуска двух экземпляров."""
-import logging
+"""Простая блокировка через файл: защита от одновременного запуска двух экземпляров.
+Если lock-файл старше MAX_AGE секунд, считается зависшим и удаляется."""
 import os
+import sys
+import time
 
-LOCK_FILE = "price_monitor.lock"
-_held = False
-logger = logging.getLogger(__name__)
-
-
-def acquire():
-    """Пытается захватить блокировку. Возвращает True при успехе, False если уже запущен другой экземпляр."""
-    global _held
-    try:
-        with open(LOCK_FILE, "x") as f:
-            f.write(str(os.getpid()))
-        _held = True
-        return True
-    except FileExistsError:
-        return False
+LOCK_FILE = "run.lock"
+MAX_AGE = 1800  # 30 минут
 
 
-def release():
-    """Снимает блокировку. Вызывать в finally. Удаляет файл только если блокировка была захвачена этим процессом."""
-    global _held
-    if not _held:
-        return
-    try:
+def acquire_lock():
+    """Захватывает блокировку. При существующем свежем lock завершает процесс. При старом lock удаляет его и создаёт новый."""
+    if os.path.exists(LOCK_FILE):
+        age = time.time() - os.path.getmtime(LOCK_FILE)
+        if age < MAX_AGE:
+            print("Another run is active (lock file exists). Exiting.")
+            sys.exit(1)
+        print("Old lock found, removing...")
         os.remove(LOCK_FILE)
-    except OSError as e:
-        logger.warning("Could not remove lock file %s: %s", LOCK_FILE, e)
-    finally:
-        _held = False
+
+    with open(LOCK_FILE, "w", encoding="utf-8") as f:
+        f.write(str(time.time()))
+
+
+def release_lock():
+    """Снимает блокировку. Удаляет lock-файл, если он существует. Вызывать в finally."""
+    if os.path.exists(LOCK_FILE):
+        try:
+            os.remove(LOCK_FILE)
+        except OSError:
+            pass
