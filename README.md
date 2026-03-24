@@ -1,6 +1,6 @@
 # Price Monitor
 
-Мониторинг цен маркетплейсов (Ozon, в перспективе Wildberries): проверка цен, алерты в Telegram, хранение истории, контроль отклонений.
+Мониторинг цен маркетплейсов (Ozon, в перспективе Wildberries): проверка цен, алерты в Telegram и e-mail, хранение истории, контроль отклонений.
 
 Проект в разработке.
 
@@ -63,8 +63,18 @@ python main.py
 - `OZON_CLIENT_ID_1`, `OZON_API_KEY_1` — ключи Ozon API для аккаунта (имена в config/accounts.json могут отличаться; поддерживается старый формат `OZON1_CLIENT_ID`, `OZON1_API_KEY`)
 
 **Опциональные:**
+- `SEND_TELEGRAM_ALERTS` — включить/выключить отправку алертов в Telegram (`true`/`false`)
+- `SEND_EMAIL_ALERTS` — включить/выключить отправку алертов по e-mail (`true`/`false`)
+- `SEND_STARTUP_MESSAGE` — отправлять стартовое сообщение в Telegram (`true`/`false`)
+- `SEND_STARTUP_EMAIL` — отправлять стартовое письмо на e-mail (`true`/`false`)
 - `SEND_RUN_SUMMARY` — отправлять ли итог запуска в Telegram (`true`/`false`, по умолчанию не отправлять)
 - `DRY_RUN` — режим без отправки в Telegram и без записи в БД (`true`/`false`)
+- `EMAIL_ENABLED` — включить e-mail канал (`true`/`false`)
+- `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT`, `EMAIL_SMTP_USER`, `EMAIL_SMTP_PASSWORD` — SMTP-подключение
+- `EMAIL_USE_TLS` — использовать STARTTLS (`true`/`false`)
+- `EMAIL_FROM` — адрес отправителя
+- `EMAIL_TO` — список получателей через запятую
+- `EMAIL_SUBJECT_PREFIX` — префикс темы (например, `[Price Monitor]`)
 
 Итог запуска в Telegram отправляется **только** при `SEND_RUN_SUMMARY=true` **и** `DRY_RUN=false`. Лог Run summary в файл пишется всегда.
 
@@ -74,7 +84,7 @@ python main.py
   Алерт срабатывает, если абсолютное изменение превышает указанный порог.
   - `ALERT_COOLDOWN_MINUTES` — пауза в минутах перед повторным алертом по тому же SKU/цене (по умолчанию: 60).
   - `MAX_ALERT_CHANGE_PERCENT` — не слать алерт при скачке выше этого % (по умолчанию: 100).
-- **Уведомления**: при наличии Telegram и хотя бы одного аккаунта в начале каждого запуска отправляется стартовое сообщение (время, число аккаунтов).
+- **Уведомления**: стартовое сообщение в Telegram управляется `SEND_STARTUP_MESSAGE`, стартовое письмо — `SEND_STARTUP_EMAIL`.
 
 ### Dry Run mode
 

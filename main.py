@@ -12,6 +12,7 @@ from database.db import init_db, save_prices
 from services.sku_cache import get_cached_sku, save_sku
 from services.price_analyzer import analyze_prices
 from services.telegram_notifier import send_telegram_alert
+from services.email_notifier import send_email
 from services.alert_state import should_send_alert, update_alert_state
 from services.run_lock import acquire_lock, release_lock
 
@@ -22,6 +23,13 @@ LOG_FILE = "logs/price_monitor.log"
 LOG_FORMAT = "%(asctime)s %(levelname)s %(message)s"
 LOG_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
 LOG_BACKUP_COUNT = 5
+
+
+def _bool_env(name, default=False):
+    v = os.getenv(name)
+    if v is None:
+        return default
+    return str(v).strip().lower() in ("true", "1", "yes", "on")
 
 
 def _setup_logging():
@@ -52,7 +60,11 @@ def main():
 
         accounts = load_config()
         validate_configuration(accounts)
-        DRY_RUN = os.getenv("DRY_RUN", "false").strip().lower() in ("true", "1", "yes")
+        DRY_RUN = _bool_env("DRY_RUN", False)
+        SEND_TELEGRAM_ALERTS = _bool_env("SEND_TELEGRAM_ALERTS", True)
+        SEND_EMAIL_ALERTS = _bool_env("SEND_EMAIL_ALERTS", False)
+        SEND_STARTUP_MESSAGE = _bool_env("SEND_STARTUP_MESSAGE", False)
+        SEND_STARTUP_EMAIL = _bool_env("SEND_STARTUP_EMAIL", False)
         if DRY_RUN:
             logging.info("DRY RUN enabled")
         stats = {
@@ -66,15 +78,21 @@ def main():
         }
 
         if accounts and not DRY_RUN:
-            try:
-                startup_msg = (
-                    "Price Monitor started\n"
-                    "Time: %s\n"
-                    "Accounts configured: %s"
-                ) % (datetime.now().strftime("%Y-%m-%d %H:%M"), len(accounts))
-                send_telegram_alert(startup_msg)
-            except Exception as e:
-                logging.error("Startup Telegram notification failed: %s", e)
+            startup_msg = (
+                "Price Monitor started\n"
+                "Time: %s\n"
+                "Accounts configured: %s"
+            ) % (datetime.now().strftime("%Y-%m-%d %H:%M"), len(accounts))
+            if SEND_STARTUP_MESSAGE:
+                try:
+                    send_telegram_alert(startup_msg)
+                except Exception as e:
+                    logging.error("Startup Telegram notification failed: %s", e)
+            if SEND_STARTUP_EMAIL:
+                try:
+                    send_email("Price Monitor Started", startup_msg)
+                except Exception as e:
+                    logging.error("Startup email notification failed: %s", e)
 
         for acc in accounts:
 
@@ -124,9 +142,21 @@ New price: {new_price}
 Change: {alert['change']}%
 Type: {alert['type']}
 """
-                            send_telegram_alert(message)
-                            update_alert_state(marketplace, name, sku, new_price)
-                            stats["alerts_sent_total"] += 1
+                            sent_any = False
+                            if SEND_TELEGRAM_ALERTS:
+                                if send_telegram_alert(message):
+                                    sent_any = True
+                            if SEND_EMAIL_ALERTS:
+                                if send_email(
+                                    f"ALERT {marketplace} / {name} / {sku}",
+                                    message,
+                                ):
+                                    sent_any = True
+                            if sent_any:
+                                update_alert_state(marketplace, name, sku, new_price)
+                                stats["alerts_sent_total"] += 1
+                            else:
+                                logging.info("Alert was not delivered by enabled channels")
                     if not DRY_RUN:
                         save_prices(marketplace, name, prices)
                         logging.info("Prices saved to database")
@@ -218,9 +248,21 @@ New price: {new_price}
 Change: {alert['change']}%
 Type: {alert['type']}
 """
-                        send_telegram_alert(message)
-                        update_alert_state(marketplace, name, sku, new_price)
-                        stats["alerts_sent_total"] += 1
+                        sent_any = False
+                        if SEND_TELEGRAM_ALERTS:
+                            if send_telegram_alert(message):
+                                sent_any = True
+                        if SEND_EMAIL_ALERTS:
+                            if send_email(
+                                f"ALERT {marketplace} / {name} / {sku}",
+                                message,
+                            ):
+                                sent_any = True
+                        if sent_any:
+                            update_alert_state(marketplace, name, sku, new_price)
+                            stats["alerts_sent_total"] += 1
+                        else:
+                            logging.info("Alert was not delivered by enabled channels")
 
                 # сохраняем цены после анализа
                 if not DRY_RUN:
@@ -246,8 +288,8 @@ Type: {alert['type']}
             stats["alerts_sent_total"],
             stats["alerts_suppressed_total"],
         )
-        send_run_summary = os.getenv("SEND_RUN_SUMMARY", "false").strip().lower() in ("true", "1", "yes")
-        if send_run_summary and not DRY_RUN:
+        send_run_summary = _bool_env("SEND_RUN_SUMMARY", False)
+        if send_run_summary and not DRY_RUN and SEND_TELEGRAM_ALERTS:
             try:
                 summary_msg = (
                     "Price Monitor run completed\n\n"
