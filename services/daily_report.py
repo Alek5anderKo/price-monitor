@@ -115,17 +115,20 @@ def generate_daily_report_text(report_date=None):
     try:
         stats = _get_day_stats(conn, date_str)
         lines = [
-            "Price Monitor — Daily Report",
-            f"Date: {date_str}",
+            "📊 Ежедневный отчет Price Monitor",
+            f"Дата: {date_str}",
             "",
-            f"Total records: {stats['total_records']}",
-            f"Unique SKUs: {stats['unique_skus']}",
-            f"Unique accounts: {stats['unique_accounts']}",
+            "Здравствуйте!",
+            "Вот сводка по изменениям цен за сегодня.",
+            "",
+            f"Всего записей: {stats['total_records']}",
+            f"Уникальных SKU: {stats['unique_skus']}",
+            f"Уникальных аккаунтов: {stats['unique_accounts']}",
             "",
         ]
 
         if stats["total_records"] == 0:
-            lines.append("No data for selected date.")
+            lines.append("За выбранную дату данных нет.")
             return "\n".join(lines)
 
         changes = _get_day_changes(conn, date_str)
@@ -136,14 +139,17 @@ def generate_daily_report_text(report_date=None):
         top_up = sorted(changes, key=lambda x: x["change_pct"], reverse=True)[:5]
         top_down = sorted(changes, key=lambda x: x["change_pct"])[:5]
 
-        lines.append("Top 5 price increases:")
+        lines.append("🔺 Топ повышений:")
         for item in top_up:
             lines.append(_format_change_row(item))
         lines.append("")
 
-        lines.append("Top 5 price decreases:")
+        lines.append("🔻 Топ снижений:")
         for item in top_down:
             lines.append(_format_change_row(item))
+        lines.append("")
+        lines.append("—")
+        lines.append("Price Monitor")
 
         return "\n".join(lines)
     finally:
