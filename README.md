@@ -18,6 +18,8 @@ python main.py
 
 **Отчёт Price Intelligence (последние 24 ч):** из корня проекта запустить `python report_price_intelligence.py` — выводится текстовая сводка: топ изменений цен, самые активные SKU, возможные аномалии. Используются только данные из `price_history`; мониторинг (main.py) не задействован.
 
+**Daily Report по e-mail:** отдельный запуск `python send_daily_report.py` формирует отчёт за день из SQLite и отправляет на e-mail (если включено через `.env`).
+
 **Как создать .env:** скопировать `.env.example` в `.env` и подставить свои значения. Файл `.env` не коммитить.
 
 ---
@@ -68,6 +70,8 @@ python main.py
 - `SEND_STARTUP_MESSAGE` — отправлять стартовое сообщение в Telegram (`true`/`false`)
 - `SEND_STARTUP_EMAIL` — отправлять стартовое письмо на e-mail (`true`/`false`)
 - `SEND_RUN_SUMMARY` — отправлять ли итог запуска в Telegram (`true`/`false`, по умолчанию не отправлять)
+- `SEND_DAILY_REPORT_EMAIL` — отправлять ежедневный e-mail отчёт (`true`/`false`)
+- `DAILY_REPORT_TIME` — рекомендуемое время запуска daily report (документационное поле для scheduler/systemd timer)
 - `DRY_RUN` — режим без отправки в Telegram и без записи в БД (`true`/`false`)
 - `EMAIL_ENABLED` — включить e-mail канал (`true`/`false`)
 - `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT`, `EMAIL_SMTP_USER`, `EMAIL_SMTP_PASSWORD` — SMTP-подключение

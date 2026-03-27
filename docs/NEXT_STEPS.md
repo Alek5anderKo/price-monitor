@@ -42,6 +42,7 @@ Future:
 - **Wildberries:** пагинация cards/list и чанки nmList для цен реализованы. Дальше: мониторинг остатков, учёт лимитов/rate limit, стабильность API
 - **SEND_STARTUP_MESSAGE:** опция true/false для включения/отключения стартового уведомления в Telegram
 - **E-mail уведомления:** после базовой SMTP-интеграции добавить health-check SMTP/валидацию конфигурации и при необходимости отдельный cooldown/метрики доставки по каналам
+- **Daily report:** настроить регулярный запуск `send_daily_report.py` через scheduler/systemd timer (ориентироваться на `DAILY_REPORT_TIME`), при необходимости добавить отдельный Telegram-канал для отчёта
 - **Ozon pagination:** пагинация при >1000 товаров/цен (last_id для products, чанки для prices)
 - **Базовые автотесты:** pytest для config_loader, валидации price_history, price_analyzer, alert_state
 - **Константы маркетплейсов:** вынести в один модуль (unify marketplace constants)
