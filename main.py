@@ -65,6 +65,9 @@ def main():
         SEND_EMAIL_ALERTS = _bool_env("SEND_EMAIL_ALERTS", False)
         SEND_STARTUP_MESSAGE = _bool_env("SEND_STARTUP_MESSAGE", False)
         SEND_STARTUP_EMAIL = _bool_env("SEND_STARTUP_EMAIL", False)
+        EMAIL_TO_ALERTS = os.getenv("EMAIL_TO_ALERTS") or ""
+        if not str(EMAIL_TO_ALERTS).strip():
+            EMAIL_TO_ALERTS = os.getenv("EMAIL_TO") or ""
         if DRY_RUN:
             logging.info("DRY RUN enabled")
         stats = {
@@ -150,6 +153,7 @@ Type: {alert['type']}
                                 if send_email(
                                     f"ALERT {marketplace} / {name} / {sku}",
                                     message,
+                                    recipients=EMAIL_TO_ALERTS,
                                 ):
                                     sent_any = True
                             if sent_any:
@@ -256,6 +260,7 @@ Type: {alert['type']}
                             if send_email(
                                 f"ALERT {marketplace} / {name} / {sku}",
                                 message,
+                                recipients=EMAIL_TO_ALERTS,
                             ):
                                 sent_any = True
                         if sent_any:

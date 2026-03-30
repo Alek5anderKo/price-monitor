@@ -77,7 +77,9 @@ python main.py
 - `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT`, `EMAIL_SMTP_USER`, `EMAIL_SMTP_PASSWORD` — SMTP-подключение
 - `EMAIL_USE_TLS` — использовать STARTTLS (`true`/`false`)
 - `EMAIL_FROM` — адрес отправителя
-- `EMAIL_TO` — список получателей через запятую
+- `EMAIL_TO` — общий fallback: список получателей через запятую
+- `EMAIL_TO_ALERTS` — получатели alert-уведомлений (если пусто — используется `EMAIL_TO`)
+- `EMAIL_TO_REPORTS` — получатели daily report-отчётов (если пусто — используется `EMAIL_TO`)
 - `EMAIL_SUBJECT_PREFIX` — префикс темы (например, `[Price Monitor]`)
 
 Итог запуска в Telegram отправляется **только** при `SEND_RUN_SUMMARY=true` **и** `DRY_RUN=false`. Лог Run summary в файл пишется всегда.

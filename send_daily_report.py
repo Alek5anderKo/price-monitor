@@ -34,7 +34,15 @@ def main():
         logging.info("SEND_DAILY_REPORT_EMAIL=false; report was generated but not sent")
         return
 
-    sent = send_email(f"Daily Report {report_date}", report_text)
+    email_to_reports = os.getenv("EMAIL_TO_REPORTS") or ""
+    if not str(email_to_reports).strip():
+        email_to_reports = os.getenv("EMAIL_TO") or ""
+
+    sent = send_email(
+        f"Daily Report {report_date}",
+        report_text,
+        recipients=email_to_reports,
+    )
     if sent:
         logging.info("Daily report email sent")
     else:

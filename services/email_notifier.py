@@ -22,7 +22,27 @@ def _bool_env(name, default=False):
     return str(v).strip().lower() in ("true", "1", "yes", "on")
 
 
-def send_email(subject, body):
+def _normalize_recipients(recipients):
+    """Normalize recipients input into a list of non-empty email strings."""
+    if recipients is None:
+        return []
+    if isinstance(recipients, str):
+        return [addr.strip() for addr in recipients.split(",") if addr.strip()]
+    if isinstance(recipients, (list, tuple, set)):
+        result = []
+        for x in recipients:
+            if x is None:
+                continue
+            sx = str(x).strip()
+            if sx:
+                result.append(sx)
+        return result
+    # Fallback: treat unknown type as a string (e.g. single email)
+    sx = str(recipients).strip()
+    return [sx] if sx else []
+
+
+def send_email(subject, body, recipients=None):
     """Send email notification. Returns True if delivered to at least one recipient."""
     if not _bool_env("EMAIL_ENABLED", False):
         return False
@@ -33,12 +53,16 @@ def send_email(subject, body):
     smtp_password = os.getenv("EMAIL_SMTP_PASSWORD") or ""
     use_tls = _bool_env("EMAIL_USE_TLS", True)
     email_from = (os.getenv("EMAIL_FROM") or "").strip()
-    email_to_raw = os.getenv("EMAIL_TO") or ""
     subject_prefix = (os.getenv("EMAIL_SUBJECT_PREFIX") or "").strip()
 
-    recipients = [addr.strip() for addr in email_to_raw.split(",") if addr.strip()]
+    if recipients is None:
+        email_to_raw = os.getenv("EMAIL_TO") or ""
+        recipients = _normalize_recipients(email_to_raw)
+    else:
+        recipients = _normalize_recipients(recipients)
+
     if not recipients:
-        logger.warning("Email notifications enabled, but EMAIL_TO is empty")
+        logger.warning("Email notifications enabled, but recipients list is empty")
         return False
 
     if not smtp_host or not email_from:
