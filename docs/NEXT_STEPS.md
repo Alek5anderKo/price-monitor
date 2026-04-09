@@ -28,6 +28,7 @@
 25. ~~Price Intelligence MVP: price_intelligence.py + report_price_intelligence.py (отчёт за 24 ч, без интеграции в main)~~
 26. ~~API retry logic (Ozon), API timeout 20 s (Ozon + Telegram), индекс БД для аналитики~~
 27. ~~Wildberries: базовый клиент (wb_client.py), интеграция в main~~
+28. ~~Снизить риск спама в e-mail уведомлениях: обновить темы и тексты alert/daily report без изменения логики~~
 
 ## Rule for every work session
 At the start:

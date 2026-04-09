@@ -115,41 +115,50 @@ def generate_daily_report_text(report_date=None):
     try:
         stats = _get_day_stats(conn, date_str)
         lines = [
-            "📊 Ежедневный отчет Price Monitor",
+            "Здравствуйте!",
+            "",
+            "Это ежедневный отчет системы Price Monitor.",
             f"Дата: {date_str}",
             "",
-            "Здравствуйте!",
-            "Вот сводка по изменениям цен за сегодня.",
-            "",
-            f"Всего записей: {stats['total_records']}",
-            f"Уникальных SKU: {stats['unique_skus']}",
-            f"Уникальных аккаунтов: {stats['unique_accounts']}",
+            "Краткая статистика:",
+            f"- Всего записей: {stats['total_records']}",
+            f"- Уникальных SKU: {stats['unique_skus']}",
+            f"- Уникальных аккаунтов: {stats['unique_accounts']}",
             "",
         ]
 
         if stats["total_records"] == 0:
-            lines.append("За выбранную дату данных нет.")
+            lines.append("За выбранную дату данные отсутствуют.")
+            lines.append("")
+            lines.append("—")
+            lines.append("Price Monitor")
+            lines.append("Автоматическое уведомление")
             return "\n".join(lines)
 
         changes = _get_day_changes(conn, date_str)
         if not changes:
-            lines.append("No valid first/last price pairs for selected date.")
+            lines.append("За выбранную дату данные отсутствуют.")
+            lines.append("")
+            lines.append("—")
+            lines.append("Price Monitor")
+            lines.append("Автоматическое уведомление")
             return "\n".join(lines)
 
         top_up = sorted(changes, key=lambda x: x["change_pct"], reverse=True)[:5]
         top_down = sorted(changes, key=lambda x: x["change_pct"])[:5]
 
-        lines.append("🔺 Топ повышений:")
+        lines.append("Рост цен (топ-5):")
         for item in top_up:
             lines.append(_format_change_row(item))
         lines.append("")
 
-        lines.append("🔻 Топ снижений:")
+        lines.append("Снижение цен (топ-5):")
         for item in top_down:
             lines.append(_format_change_row(item))
         lines.append("")
         lines.append("—")
         lines.append("Price Monitor")
+        lines.append("Автоматическое уведомление")
 
         return "\n".join(lines)
     finally:

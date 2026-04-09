@@ -39,7 +39,7 @@ def main():
         email_to_reports = os.getenv("EMAIL_TO") or ""
 
     sent = send_email(
-        f"Daily Report {report_date}",
+        f"Отчет Price Monitor за {report_date}",
         report_text,
         recipients=email_to_reports,
     )

@@ -131,27 +131,27 @@ def main():
                             if DRY_RUN:
                                 logging.info("DRY RUN: alert detected but not sent")
                                 continue
-                            message = f"""
-⚠ PRICE ALERT
-
-Marketplace: {marketplace}
-Account: {name}
-
-SKU: {sku}
-
-Old price: {alert['old_price']}
-New price: {new_price}
-
-Change: {alert['change']}%
-Type: {alert['type']}
-"""
+                            old_price = alert["old_price"]
+                            change = alert["change"]
+                            message = (
+                                "Здравствуйте!\n\n"
+                                "Обнаружено изменение цены.\n\n"
+                                f"Маркетплейс: {marketplace}\n"
+                                f"Аккаунт: {name}\n"
+                                f"SKU: {sku}\n\n"
+                                f"Цена была: {old_price}\n"
+                                f"Цена стала: {new_price}\n"
+                                f"Изменение: {round(change, 2)}%\n\n"
+                                "Рекомендуем проверить цену в личном кабинете.\n\n"
+                                "Это автоматическое уведомление Price Monitor."
+                            )
                             sent_any = False
                             if SEND_TELEGRAM_ALERTS:
                                 if send_telegram_alert(message):
                                     sent_any = True
                             if SEND_EMAIL_ALERTS:
                                 if send_email(
-                                    f"ALERT {marketplace} / {name} / {sku}",
+                                    f"Изменение цены: {marketplace} | {sku} | {round(change, 1)}%",
                                     message,
                                     recipients=EMAIL_TO_ALERTS,
                                 ):
@@ -238,27 +238,27 @@ Type: {alert['type']}
                         if DRY_RUN:
                             logging.info("DRY RUN: alert detected but not sent")
                             continue
-                        message = f"""
-⚠ PRICE ALERT
-
-Marketplace: {marketplace}
-Account: {name}
-
-SKU: {sku}
-
-Old price: {alert['old_price']}
-New price: {new_price}
-
-Change: {alert['change']}%
-Type: {alert['type']}
-"""
+                        old_price = alert["old_price"]
+                        change = alert["change"]
+                        message = (
+                            "Здравствуйте!\n\n"
+                            "Обнаружено изменение цены.\n\n"
+                            f"Маркетплейс: {marketplace}\n"
+                            f"Аккаунт: {name}\n"
+                            f"SKU: {sku}\n\n"
+                            f"Цена была: {old_price}\n"
+                            f"Цена стала: {new_price}\n"
+                            f"Изменение: {round(change, 2)}%\n\n"
+                            "Рекомендуем проверить цену в личном кабинете.\n\n"
+                            "Это автоматическое уведомление Price Monitor."
+                        )
                         sent_any = False
                         if SEND_TELEGRAM_ALERTS:
                             if send_telegram_alert(message):
                                 sent_any = True
                         if SEND_EMAIL_ALERTS:
                             if send_email(
-                                f"ALERT {marketplace} / {name} / {sku}",
+                                f"Изменение цены: {marketplace} | {sku} | {round(change, 1)}%",
                                 message,
                                 recipients=EMAIL_TO_ALERTS,
                             ):
