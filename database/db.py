@@ -24,6 +24,30 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_price_history_lookup
         ON price_history(marketplace, account, sku, created_at)
         """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS stock_monitor_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            marketplace TEXT,
+            account TEXT,
+            sku TEXT,
+            product_id INTEGER,
+            current_stock INTEGER,
+            orders_7 INTEGER,
+            orders_14 INTEGER,
+            orders_30 INTEGER,
+            avg_7 REAL,
+            avg_14 REAL,
+            avg_30 REAL,
+            avg_daily_orders REAL,
+            days_left REAL,
+            alert_triggered INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+        cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_stock_monitor_lookup
+        ON stock_monitor_history(marketplace, account, sku, created_at)
+        """)
         conn.commit()
     finally:
         conn.close()
@@ -110,6 +134,43 @@ def save_prices(marketplace, account, prices):
             (marketplace, account, sku, product_id, price)
             VALUES (?, ?, ?, ?, ?)
         """, rows)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def save_stock_monitor_rows(rows):
+    if not rows:
+        return
+
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    try:
+        cursor.executemany(
+            """
+            INSERT INTO stock_monitor_history (
+                marketplace,
+                account,
+                sku,
+                product_id,
+                current_stock,
+                orders_7,
+                orders_14,
+                orders_30,
+                avg_7,
+                avg_14,
+                avg_30,
+                avg_daily_orders,
+                days_left,
+                alert_triggered
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            rows,
+        )
         conn.commit()
     except Exception:
         conn.rollback()

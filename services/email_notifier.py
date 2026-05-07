@@ -10,7 +10,7 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-SMTP_TIMEOUT = 10
+SMTP_TIMEOUT = 30
 MAX_RETRIES = 3
 RETRY_DELAY = 2
 
@@ -84,9 +84,16 @@ def send_email(subject, body, recipients=None):
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            with smtplib.SMTP(smtp_host, smtp_port, timeout=SMTP_TIMEOUT) as server:
-                if use_tls:
+            if smtp_port == 465:
+                server_ctx = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=SMTP_TIMEOUT)
+            else:
+                server_ctx = smtplib.SMTP(smtp_host, smtp_port, timeout=SMTP_TIMEOUT)
+
+            with server_ctx as server:
+                server.ehlo()
+                if smtp_port != 465 and use_tls:
                     server.starttls()
+                    server.ehlo()
                 if smtp_user:
                     server.login(smtp_user, smtp_password)
                 server.send_message(msg)
