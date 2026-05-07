@@ -4,8 +4,8 @@ import re
 
 from dotenv import load_dotenv
 
-from clients.ozon_orders_client import get_test_ozon_orders
-from clients.ozon_stock_client import get_test_ozon_stocks
+from clients.ozon_orders_client import get_ozon_orders, get_test_ozon_orders
+from clients.ozon_stock_client import get_ozon_stocks, get_test_ozon_stocks
 from clients.wb_orders_client import get_test_wb_orders
 from clients.wb_stock_client import get_test_wb_stocks
 from database.db import init_db, save_stock_monitor_rows
@@ -55,9 +55,20 @@ def _normalize_account_id(name):
     return raw.strip("_")
 
 
-def _get_test_data_for_account(account_id, marketplace):
+def _get_data_for_account(account_id, marketplace, client_id=None, api_key=None):
     if marketplace == "ozon" and account_id in {"ozon_1", "ozon_2"}:
-        return get_test_ozon_stocks(account_id), get_test_ozon_orders(account_id)
+        stocks, stock_meta = get_ozon_stocks(client_id, api_key, return_meta=True)
+        orders = get_ozon_orders(client_id, api_key)
+        if not stocks:
+            if stock_meta.get("api_failed"):
+                logging.warning("Ozon real stock API failed; using test fallback")
+            else:
+                logging.warning("Ozon real stock API failed; stock rows empty")
+            stocks = get_test_ozon_stocks(account_id)
+        if not orders:
+            logging.warning("Ozon API unavailable or empty for %s; using test orders fallback", account_id)
+            orders = get_test_ozon_orders(account_id)
+        return stocks, orders
     if marketplace == "wildberries" and account_id == "wb_1":
         return get_test_wb_stocks(account_id), get_test_wb_orders(account_id)
     return [], {}
@@ -129,7 +140,19 @@ def main():
         if account_id not in ALLOWED_ACCOUNT_IDS:
             continue
 
-        stocks, orders_map = _get_test_data_for_account(account_id, marketplace)
+        stocks, orders_map = _get_data_for_account(
+            account_id,
+            marketplace,
+            client_id=acc.get("client_id"),
+            api_key=acc.get("api_key"),
+        )
+        logging.info(
+            "Stock Monitor source loaded: account=%s marketplace=%s stock_rows=%s order_rows=%s",
+            account_name,
+            marketplace,
+            len(stocks),
+            len(orders_map),
+        )
         combined_items = _combine_stock_and_orders(marketplace, account_name, stocks, orders_map)
         rows_to_save, bad_rows = build_stock_monitor_rows(
             combined_items,
