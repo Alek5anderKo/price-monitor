@@ -58,11 +58,16 @@ def _post_json_with_retries(url, headers, payload):
 def _count_orders_for_days(client_id, api_key, days):
     headers = _ozon_headers(client_id, api_key)
     since_dt = datetime.now(timezone.utc) - timedelta(days=days)
+    return _count_orders_for_period(client_id, api_key, since_dt, datetime.now(timezone.utc))
+
+
+def _count_orders_for_period(client_id, api_key, since_dt, to_dt):
+    headers = _ozon_headers(client_id, api_key)
     payload = {
         "dir": "ASC",
         "filter": {
             "since": _iso_utc(since_dt),
-            "to": _iso_utc(datetime.now(timezone.utc)),
+            "to": _iso_utc(to_dt),
         },
         "limit": POSTINGS_LIMIT,
         "offset": 0,
@@ -131,6 +136,34 @@ def get_ozon_orders(client_id, api_key):
 
     logger.info("Ozon stock monitor: order rows loaded=%s", len(result))
     return result
+
+
+def get_ozon_orders_for_period(client_id, api_key, date_from, date_to):
+    """
+    Return dict sku -> orders count for a custom UTC period [date_from, date_to].
+    date_from/date_to can be datetime or ISO-like string accepted by datetime.fromisoformat.
+    """
+    if not client_id or not api_key:
+        logger.warning("Ozon stock monitor: missing API credentials")
+        return {}
+    try:
+        if isinstance(date_from, datetime):
+            from_dt = date_from
+        else:
+            from_dt = datetime.fromisoformat(str(date_from))
+        if isinstance(date_to, datetime):
+            to_dt = date_to
+        else:
+            to_dt = datetime.fromisoformat(str(date_to))
+        if from_dt.tzinfo is None:
+            from_dt = from_dt.replace(tzinfo=timezone.utc)
+        if to_dt.tzinfo is None:
+            to_dt = to_dt.replace(tzinfo=timezone.utc)
+        if from_dt > to_dt:
+            return {}
+    except (TypeError, ValueError):
+        return {}
+    return _count_orders_for_period(client_id, api_key, from_dt, to_dt)
 
 
 def get_test_ozon_orders(account_id):

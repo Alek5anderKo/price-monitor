@@ -22,6 +22,8 @@ python main.py
 
 **Stock Monitor:** отдельный запуск `python send_stock_monitor_report.py` выполняет ежедневную проверку остатков и отправляет e-mail отчёт (если включено через `.env`). Текущий дефолтный порог запаса — 14 дней (`STOCK_MONITOR_DAYS_THRESHOLD`).
 
+**Sales Drop Alert:** отдельный запуск `python send_sales_drop_report.py` выполняет еженедельную проверку резкого снижения продаж и отправляет e-mail отчет.
+
 **Как создать .env:** скопировать `.env.example` в `.env` и подставить свои значения. Файл `.env` не коммитить.
 
 ---
