@@ -6,8 +6,8 @@ from dotenv import load_dotenv
 
 from clients.ozon_orders_client import get_ozon_orders, get_test_ozon_orders
 from clients.ozon_stock_client import get_ozon_stocks, get_test_ozon_stocks
-from clients.wb_orders_client import get_test_wb_orders
-from clients.wb_stock_client import get_test_wb_stocks
+from clients.wb_orders_client import get_test_wb_orders, get_wb_orders
+from clients.wb_stock_client import get_test_wb_stocks, get_wb_stocks
 from database.db import init_db, save_stock_monitor_rows
 from services.config_loader import load_config
 from services.email_notifier import send_email
@@ -18,7 +18,7 @@ from services.stock_monitor_email_report import (
 )
 
 ALLOWED_ACCOUNT_IDS = {"ozon_1", "ozon_2", "wb_1"}
-DEFAULT_DAYS_THRESHOLD = 30.0
+DEFAULT_DAYS_THRESHOLD = 14.0
 DEFAULT_MIN_AVG_DAILY_ORDERS = 0.0
 
 
@@ -55,7 +55,9 @@ def _normalize_account_id(name):
     return raw.strip("_")
 
 
-def _get_data_for_account(account_id, marketplace, client_id=None, api_key=None):
+def _get_data_for_account(
+    account_id, marketplace, client_id=None, api_key=None, wb_enabled=False
+):
     if marketplace == "ozon" and account_id in {"ozon_1", "ozon_2"}:
         stocks, stock_meta = get_ozon_stocks(client_id, api_key, return_meta=True)
         orders = get_ozon_orders(client_id, api_key)
@@ -70,7 +72,20 @@ def _get_data_for_account(account_id, marketplace, client_id=None, api_key=None)
             orders = get_test_ozon_orders(account_id)
         return stocks, orders
     if marketplace == "wildberries" and account_id == "wb_1":
-        return get_test_wb_stocks(account_id), get_test_wb_orders(account_id)
+        if not wb_enabled:
+            logging.info("WB Stock Monitor is disabled by STOCK_MONITOR_WB_ENABLED")
+            return [], {}
+        stocks = get_wb_stocks(api_key)
+        orders = get_wb_orders(api_key)
+        logging.info("WB stock rows loaded=%s", len(stocks))
+        logging.info("WB order rows loaded=%s", len(orders))
+        if not stocks or not orders:
+            logging.warning("WB real API failed; using test fallback")
+            if not stocks:
+                stocks = get_test_wb_stocks(account_id)
+            if not orders:
+                orders = get_test_wb_orders(account_id)
+        return stocks, orders
     return [], {}
 
 
@@ -129,6 +144,8 @@ def main():
     min_avg_daily_orders = _float_env(
         "STOCK_MONITOR_MIN_AVG_DAILY_ORDERS", DEFAULT_MIN_AVG_DAILY_ORDERS
     )
+    wb_enabled = _bool_env("STOCK_MONITOR_WB_ENABLED", False)
+    logging.info("Stock Monitor WB enabled=%s", wb_enabled)
 
     all_rows = []
     problematic_rows = []
@@ -145,6 +162,7 @@ def main():
             marketplace,
             client_id=acc.get("client_id"),
             api_key=acc.get("api_key"),
+            wb_enabled=wb_enabled,
         )
         logging.info(
             "Stock Monitor source loaded: account=%s marketplace=%s stock_rows=%s order_rows=%s",

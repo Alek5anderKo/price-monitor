@@ -20,7 +20,7 @@ python main.py
 
 **Daily Report по e-mail:** отдельный запуск `python send_daily_report.py` формирует отчёт за день из SQLite и отправляет на e-mail (если включено через `.env`).
 
-**Stock Monitor:** отдельный запуск `python send_stock_monitor_report.py` выполняет ежедневную проверку остатков и отправляет e-mail отчёт (если включено через `.env`).
+**Stock Monitor:** отдельный запуск `python send_stock_monitor_report.py` выполняет ежедневную проверку остатков и отправляет e-mail отчёт (если включено через `.env`). Текущий дефолтный порог запаса — 14 дней (`STOCK_MONITOR_DAYS_THRESHOLD`).
 
 **Как создать .env:** скопировать `.env.example` в `.env` и подставить свои значения. Файл `.env` не коммитить.
 
