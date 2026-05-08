@@ -1,3 +1,6 @@
+from services.account_display import get_account_display_name
+
+
 def build_stock_monitor_email_text(problematic_rows, days_threshold):
     """
     Build business-style email grouped by marketplace/account.
@@ -6,7 +9,7 @@ def build_stock_monitor_email_text(problematic_rows, days_threshold):
         "Здравствуйте!",
         "",
         "Направляем результаты ежедневной проверки остатков.",
-        f"Порог по дням запаса: менее {days_threshold:.2f} дней.",
+        f"Расчетный порог: менее {days_threshold:.0f} дней.",
         "",
     ]
 
@@ -17,7 +20,7 @@ def build_stock_monitor_email_text(problematic_rows, days_threshold):
 
     for (marketplace, account), rows in grouped.items():
         lines.append(f"Маркетплейс: {marketplace}")
-        lines.append(f"Аккаунт: {account}")
+        lines.append(f"Аккаунт: {get_account_display_name(account)}")
         for row in rows:
             lines.append(
                 (
@@ -31,7 +34,7 @@ def build_stock_monitor_email_text(problematic_rows, days_threshold):
         lines.append("")
 
     lines.append("С уважением,")
-    lines.append("Price Monitor")
+    lines.append("MP Monitor")
     lines.append("Автоматическое уведомление")
     return "\n".join(lines)
 

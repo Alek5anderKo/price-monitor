@@ -2,6 +2,7 @@ import sqlite3
 from datetime import datetime
 
 from database.db import DB_NAME
+from services.account_display import get_account_display_name
 
 
 def _normalize_report_date(report_date=None):
@@ -126,8 +127,9 @@ def _get_day_changes(conn, date_str):
 
 
 def _format_change_row(item, target_price_key, target_change_key):
+    account_display = get_account_display_name(item["account"])
     return (
-        f"- {item['marketplace']} | {item['account']} | SKU {item['sku']}: "
+        f"- {item['marketplace']} | {account_display} | SKU {item['sku']}: "
         f"{item['first_price']:.2f} -> {item[target_price_key]:.2f} "
         f"({item[target_change_key]:+.2f}%)"
     )
@@ -145,7 +147,7 @@ def generate_daily_report_text(report_date=None):
         lines = [
             "Здравствуйте!",
             "",
-            "Это ежедневный отчет системы Price Monitor.",
+            "Это ежедневный отчет системы MP Monitor.",
             f"Дата: {date_str}",
             "",
             "Краткая статистика:",
@@ -159,7 +161,7 @@ def generate_daily_report_text(report_date=None):
             lines.append("За выбранную дату данные отсутствуют.")
             lines.append("")
             lines.append("—")
-            lines.append("Price Monitor")
+            lines.append("MP Monitor")
             lines.append("Автоматическое уведомление")
             return "\n".join(lines)
 
@@ -168,7 +170,7 @@ def generate_daily_report_text(report_date=None):
             lines.append("За выбранную дату данные отсутствуют.")
             lines.append("")
             lines.append("—")
-            lines.append("Price Monitor")
+            lines.append("MP Monitor")
             lines.append("Автоматическое уведомление")
             return "\n".join(lines)
 
@@ -191,7 +193,7 @@ def generate_daily_report_text(report_date=None):
             lines.append(_format_change_row(item, "last_price", "final_change_pct"))
         lines.append("")
         lines.append("—")
-        lines.append("Price Monitor")
+        lines.append("MP Monitor")
         lines.append("Автоматическое уведомление")
 
         return "\n".join(lines)

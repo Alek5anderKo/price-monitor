@@ -15,6 +15,7 @@ from services.telegram_notifier import send_telegram_alert
 from services.email_notifier import send_email
 from services.alert_state import should_send_alert, update_alert_state
 from services.run_lock import acquire_lock, release_lock
+from services.account_display import get_account_display_name
 
 MARKETPLACE_OZON = "ozon"
 MARKETPLACE_WILDBERIES = "wildberries"
@@ -93,7 +94,8 @@ def main():
                     logging.error("Startup Telegram notification failed: %s", e)
             if SEND_STARTUP_EMAIL:
                 try:
-                    send_email("Price Monitor Started", startup_msg)
+                    startup_email_msg = startup_msg.replace("Price Monitor started", "MP Monitor started")
+                    send_email("MP Monitor Started", startup_email_msg)
                 except Exception as e:
                     logging.error("Startup email notification failed: %s", e)
 
@@ -145,6 +147,11 @@ def main():
                                 "Рекомендуем проверить цену в личном кабинете.\n\n"
                                 "Это автоматическое уведомление Price Monitor."
                             )
+                            account_display = get_account_display_name(name)
+                            email_message = (
+                                message.replace(f"Аккаунт: {name}", f"Аккаунт: {account_display}")
+                                .replace("Это автоматическое уведомление Price Monitor.", "Это автоматическое уведомление MP Monitor.")
+                            )
                             sent_any = False
                             if SEND_TELEGRAM_ALERTS:
                                 if send_telegram_alert(message):
@@ -152,7 +159,7 @@ def main():
                             if SEND_EMAIL_ALERTS:
                                 if send_email(
                                     f"Изменение цены: {marketplace} | {sku} | {round(change, 1)}%",
-                                    message,
+                                    email_message,
                                     recipients=EMAIL_TO_ALERTS,
                                 ):
                                     sent_any = True
@@ -252,6 +259,11 @@ def main():
                             "Рекомендуем проверить цену в личном кабинете.\n\n"
                             "Это автоматическое уведомление Price Monitor."
                         )
+                        account_display = get_account_display_name(name)
+                        email_message = (
+                            message.replace(f"Аккаунт: {name}", f"Аккаунт: {account_display}")
+                            .replace("Это автоматическое уведомление Price Monitor.", "Это автоматическое уведомление MP Monitor.")
+                        )
                         sent_any = False
                         if SEND_TELEGRAM_ALERTS:
                             if send_telegram_alert(message):
@@ -259,7 +271,7 @@ def main():
                         if SEND_EMAIL_ALERTS:
                             if send_email(
                                 f"Изменение цены: {marketplace} | {sku} | {round(change, 1)}%",
-                                message,
+                                email_message,
                                 recipients=EMAIL_TO_ALERTS,
                             ):
                                 sent_any = True

@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+from datetime import datetime
 
 from dotenv import load_dotenv
 
@@ -190,7 +191,12 @@ def main():
     recipients = normalize_stock_monitor_recipients(os.getenv("STOCK_MONITOR_EMAILS"))
 
     email_text = build_stock_monitor_email_text(problematic_rows, days_threshold)
-    sent = send_email("Ежедневная проверка остатков", email_text, recipients=recipients)
+    report_date = datetime.now().strftime("%d.%m.%Y")
+    sent = send_email(
+        f"Проверка остатков за {report_date}",
+        email_text,
+        recipients=recipients,
+    )
     if sent:
         logging.info("Stock monitor email sent")
     else:

@@ -82,7 +82,7 @@ python main.py
 - `EMAIL_TO` — общий fallback: список получателей через запятую
 - `EMAIL_TO_ALERTS` — получатели alert-уведомлений (если пусто — используется `EMAIL_TO`)
 - `EMAIL_TO_REPORTS` — получатели daily report-отчётов (если пусто — используется `EMAIL_TO`)
-- `EMAIL_SUBJECT_PREFIX` — префикс темы (например, `[Price Monitor]`)
+- `EMAIL_SUBJECT_PREFIX` — префикс темы (например, `[MP Monitor]`)
 
 Итог запуска в Telegram отправляется **только** при `SEND_RUN_SUMMARY=true` **и** `DRY_RUN=false`. Лог Run summary в файл пишется всегда.
 
