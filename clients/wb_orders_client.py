@@ -1,3 +1,11 @@
+"""
+WB orders for Stock Monitor via Statistics API (not seller-analytics sales-funnel).
+
+GET https://statistics-api.wildberries.ru/api/v1/supplier/orders
+- One initial window: dateFrom = now - 30 days (MSK), flag=0.
+- If response hits ~80k rows, WB requires follow-up requests with dateFrom = last row's
+  lastChangeDate; we merge and still filter each line by order `date` into 7/14/30 days.
+"""
 import logging
 import time
 from datetime import datetime, timedelta, timezone
@@ -7,186 +15,223 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-WB_SALES_FUNNEL_URL = "https://seller-analytics-api.wildberries.ru/api/analytics/v3/sales-funnel/products"
+WB_ORDERS_STATS_URL = "https://statistics-api.wildberries.ru/api/v1/supplier/orders"
 API_TIMEOUT = 30
-MAX_RETRIES = 3
-RETRY_DELAY = 2
-WINDOW_REQUEST_DELAY_SECONDS = 20
+# At most one retry for non-429 failures; no retries on 429.
+MAX_ATTEMPTS = 2
+RETRY_DELAY_SECONDS = 2
+WB_ROW_WARN_THRESHOLD = 78000
+# WB Statistics timestamps are documented as Moscow time; use fixed UTC+3 (no tzdata dependency).
+MSK_TZ = timezone(timedelta(hours=3), name="MSK")
 
 
 def _wb_headers(api_key):
-    return {"Authorization": api_key or "", "Content-Type": "application/json"}
-
-
-def _iso_date(dt):
-    return dt.astimezone(timezone.utc).strftime("%Y-%m-%d")
-
-
-def _post_sales_funnel_json(url, headers, payload):
-    """
-    POST to sales-funnel/products. On 429: no retries (attempts 2–3 skipped), returns (None, True).
-    On other HTTP errors / exceptions: up to MAX_RETRIES with delay.
-    """
-    endpoint_path = urlparse(url).path
-    for attempt in range(1, MAX_RETRIES + 1):
-        status_code = None
-        try:
-            response = requests.post(url, json=payload, headers=headers, timeout=API_TIMEOUT)
-            status_code = response.status_code
-            if response.status_code == 200:
-                return response.json(), False
-            if response.status_code == 429:
-                logger.warning("WB orders rate limit hit; skipping WB orders for this run")
-                return None, True
-            response_text_short = (response.text or "").strip().replace("\n", " ")[:500]
-            hint = ""
-            if response.status_code == 403:
-                hint = " likely token permissions issue; check WB token categories and token type"
-            elif response.status_code == 400:
-                hint = " invalid request payload"
-            elif response.status_code == 404:
-                hint = " endpoint/base URL likely wrong"
-            logger.warning(
-                "WB request failed endpoint=%s attempt=%s/%s status=%s response=%s%s",
-                endpoint_path,
-                attempt,
-                MAX_RETRIES,
-                response.status_code,
-                response_text_short,
-                hint,
-            )
-        except requests.RequestException as e:
-            logger.warning(
-                "WB request exception endpoint=%s attempt=%s/%s error=%s",
-                endpoint_path,
-                attempt,
-                MAX_RETRIES,
-                e,
-            )
-        if attempt < MAX_RETRIES:
-            time.sleep(RETRY_DELAY)
-    return None, False
-
-
-def _iter_funnel_rows(data):
-    if isinstance(data, list):
-        return data
-    if not isinstance(data, dict):
-        return []
-    for key in ("data", "items", "rows", "report"):
-        value = data.get(key)
-        if isinstance(value, list):
-            return value
-        if isinstance(value, dict):
-            for subkey in ("items", "rows", "products"):
-                subvalue = value.get(subkey)
-                if isinstance(subvalue, list):
-                    return subvalue
-    return []
+    return {"Authorization": api_key or ""}
 
 
 def _extract_sku(row):
-    vendor_code = row.get("vendorCode")
-    if vendor_code is not None and str(vendor_code).strip():
-        return str(vendor_code).strip()
+    """Match wb_stock_client: vendorCode first, then supplier article, then nmId."""
+    if not isinstance(row, dict):
+        return None
+    for key in ("vendorCode", "supplierArticle"):
+        val = row.get(key)
+        if val is not None and str(val).strip():
+            return str(val).strip()
     nm_id = row.get("nmId") or row.get("nmID")
     if nm_id is not None:
         return str(nm_id)
     return None
 
 
-def _extract_orders_count(row):
-    statistic = row.get("statistic")
-    if isinstance(statistic, dict):
-        selected = statistic.get("selected")
-        if isinstance(selected, dict):
-            for nested_key in ("orderCount", "ordersCount"):
-                if nested_key in selected:
-                    try:
-                        return max(0, int(selected.get(nested_key) or 0))
-                    except (TypeError, ValueError):
-                        return 0
-    for key in ("ordersCount", "orders", "ordersCnt", "countOrders"):
-        if key in row:
-            try:
-                return max(0, int(row.get(key) or 0))
-            except (TypeError, ValueError):
-                return 0
-    return 0
+def _parse_order_datetime(row):
+    """
+    Prefer `date` (order moment), then `lastChangeDate` (WB service update time).
+    Naive strings without timezone are interpreted as UTC+3 / MSK per WB docs.
+    """
+    for key in ("date", "lastChangeDate"):
+        raw = row.get(key)
+        if raw is None:
+            continue
+        if isinstance(raw, datetime):
+            dt = raw
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=MSK_TZ)
+            return dt.astimezone(timezone.utc)
+        if not isinstance(raw, str):
+            continue
+        s = raw.strip()
+        if not s:
+            continue
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        try:
+            dt = datetime.fromisoformat(s)
+        except ValueError:
+            continue
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=MSK_TZ)
+        return dt.astimezone(timezone.utc)
+    return None
 
 
-def _load_orders_for_days(api_key, days):
-    selected_end = datetime.now(timezone.utc)
-    selected_start = selected_end - timedelta(days=max(1, int(days)) - 1)
-    past_end = selected_start - timedelta(days=1)
-    past_start = past_end - timedelta(days=max(1, int(days)) - 1)
-    payload = {
-        "selectedPeriod": {"start": _iso_date(selected_start), "end": _iso_date(selected_end)},
-        "pastPeriod": {"start": _iso_date(past_start), "end": _iso_date(past_end)},
-        "nmIds": [],
-        "brandNames": [],
-        "subjectIds": [],
-        "tagIds": [],
-        "skipDeletedNm": False,
-        "orderBy": {"field": "openCard", "mode": "asc"},
-        "limit": 1000,
-        "offset": 0,
-    }
-    data, rate_limited = _post_sales_funnel_json(
-        WB_SALES_FUNNEL_URL, _wb_headers(api_key), payload
-    )
-    if rate_limited:
-        return {}, True
-    if not isinstance(data, (dict, list)):
-        return {}, False
+def _row_counts_as_active_order(row):
+    if not isinstance(row, dict):
+        return False
+    if row.get("isCancel") is True:
+        return False
+    return True
 
-    rows = _iter_funnel_rows(data)
-    if not isinstance(rows, list):
-        return {}, False
 
-    result = {}
+def _get_orders_page(url, headers, params):
+    endpoint_path = urlparse(url).path
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        status_code = None
+        try:
+            response = requests.get(
+                url, headers=headers, params=params, timeout=API_TIMEOUT
+            )
+            status_code = response.status_code
+            if response.status_code == 200:
+                try:
+                    return response.json(), None
+                except ValueError:
+                    logger.warning(
+                        "WB orders statistics: invalid JSON endpoint=%s",
+                        endpoint_path,
+                    )
+                    return None, "format"
+            if response.status_code == 429:
+                logger.warning(
+                    "WB orders statistics: rate limit endpoint=%s status=429",
+                    endpoint_path,
+                )
+                return None, "429"
+            if response.status_code in (401, 403):
+                logger.warning(
+                    "WB orders statistics: likely token/category issue endpoint=%s status=%s",
+                    endpoint_path,
+                    response.status_code,
+                )
+                return None, "auth"
+            response_text_short = (response.text or "").strip().replace("\n", " ")[:500]
+            logger.warning(
+                "WB orders statistics: request failed endpoint=%s attempt=%s/%s status=%s response=%s",
+                endpoint_path,
+                attempt,
+                MAX_ATTEMPTS,
+                response.status_code,
+                response_text_short,
+            )
+        except requests.RequestException as e:
+            logger.warning(
+                "WB orders statistics: request exception endpoint=%s attempt=%s/%s error=%s",
+                endpoint_path,
+                attempt,
+                MAX_ATTEMPTS,
+                e,
+            )
+        if attempt < MAX_ATTEMPTS and status_code != 429:
+            time.sleep(RETRY_DELAY_SECONDS)
+    return None, "failed"
+
+
+def _aggregate_orders(rows, now_utc):
+    """rows: list of dicts from Statistics orders API."""
+    cutoff_7 = now_utc - timedelta(days=7)
+    cutoff_14 = now_utc - timedelta(days=14)
+    cutoff_30 = now_utc - timedelta(days=30)
+
+    counts = {}
     for row in rows:
         if not isinstance(row, dict):
+            continue
+        if not _row_counts_as_active_order(row):
             continue
         sku = _extract_sku(row)
         if not sku:
             continue
-        result[sku] = result.get(sku, 0) + _extract_orders_count(row)
-    return result, False
+        order_dt = _parse_order_datetime(row)
+        if order_dt is None or order_dt < cutoff_30:
+            continue
+
+        if sku not in counts:
+            counts[sku] = {"orders_7": 0, "orders_14": 0, "orders_30": 0}
+
+        if order_dt >= cutoff_30:
+            counts[sku]["orders_30"] += 1
+        if order_dt >= cutoff_14:
+            counts[sku]["orders_14"] += 1
+        if order_dt >= cutoff_7:
+            counts[sku]["orders_7"] += 1
+
+    return {k: dict(v) for k, v in counts.items()}
 
 
 def get_wb_orders(api_key):
     """
-    Real WB orders via sales funnel analytics.
+    WB orders via Statistics API GET /api/v1/supplier/orders (30-day pull, local 7/14/30).
+
     Returns: {"SKU": {"orders_7": int, "orders_14": int, "orders_30": int}}
-    On HTTP 429 (any window) or missing credentials: returns {} and does not call later windows.
     """
     if not api_key or not str(api_key).strip():
         logger.warning("WB stock monitor: missing API credentials")
         return {}
 
-    orders_7_map, rl = _load_orders_for_days(api_key, 7)
-    if rl:
-        return {}
-    time.sleep(WINDOW_REQUEST_DELAY_SECONDS)
-    orders_14_map, rl = _load_orders_for_days(api_key, 14)
-    if rl:
-        return {}
-    time.sleep(WINDOW_REQUEST_DELAY_SECONDS)
-    orders_30_map, rl = _load_orders_for_days(api_key, 30)
-    if rl:
-        return {}
+    now_utc = datetime.now(timezone.utc)
+    start_msk = datetime.now(MSK_TZ) - timedelta(days=30)
+    date_from_initial = start_msk.strftime("%Y-%m-%dT%H:%M:%S")
 
-    all_skus = set(orders_7_map) | set(orders_14_map) | set(orders_30_map)
-    result = {}
-    for sku in all_skus:
-        result[sku] = {
-            "orders_7": int(orders_7_map.get(sku, 0)),
-            "orders_14": int(orders_14_map.get(sku, 0)),
-            "orders_30": int(orders_30_map.get(sku, 0)),
-        }
+    headers = _wb_headers(api_key)
+    all_rows = []
+    date_from = date_from_initial
+    pages = 0
+    max_pages = 40
+
+    while pages < max_pages:
+        pages += 1
+        params = {"dateFrom": date_from, "flag": 0}
+        data, err = _get_orders_stats_page(headers, params)
+        if err == "429":
+            return {}
+        if err in ("auth", "format"):
+            return {}
+        if err or data is None:
+            logger.warning("WB orders statistics: giving up after failed request")
+            return {}
+        if not isinstance(data, list):
+            logger.warning("WB orders statistics: unexpected response type (expected list)")
+            return {}
+
+        if len(data) >= WB_ROW_WARN_THRESHOLD:
+            logger.warning(
+                "WB orders statistics: large page (%s rows); WB may truncate without pagination",
+                len(data),
+            )
+
+        all_rows.extend(data)
+
+        if not data:
+            break
+        if len(data) < 80000:
+            break
+
+        last = data[-1]
+        if not isinstance(last, dict):
+            logger.warning("WB orders statistics: cannot paginate (bad last row)")
+            break
+        nxt = last.get("lastChangeDate")
+        if not nxt or str(nxt).strip() == str(date_from).strip():
+            break
+        date_from = str(nxt).strip()
+
+    result = _aggregate_orders(all_rows, now_utc)
     logger.info("WB order rows loaded=%s", len(result))
     return result
+
+
+def _get_orders_stats_page(headers, params):
+    """GET supplier/orders; returns (list|None, error_code|None)."""
+    return _get_orders_page(WB_ORDERS_STATS_URL, headers, params)
 
 
 def get_test_wb_orders(account_id):

@@ -79,9 +79,10 @@ def _iter_stock_rows(data):
 
 
 def _extract_sku(row):
-    vendor_code = row.get("vendorCode")
-    if vendor_code is not None and str(vendor_code).strip():
-        return str(vendor_code).strip()
+    for key in ("vendorCode", "supplierArticle"):
+        val = row.get(key)
+        if val is not None and str(val).strip():
+            return str(val).strip()
     nm_id = row.get("nmId") or row.get("nmID")
     if nm_id is not None:
         return str(nm_id)

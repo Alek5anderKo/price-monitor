@@ -23,6 +23,10 @@
 - 14 дней
 - 30 дней
 
+## Wildberries (Stock Monitor): источники API
+- **Остатки:** Seller Analytics `POST /api/analytics/v1/stocks-report/wb-warehouses` (нужны права категории токена, связанной с Analytics).
+- **Заказы:** Statistics API `GET https://statistics-api.wildberries.ru/api/v1/supplier/orders` с `dateFrom` ≈ 30 суток назад (RFC3339; в коде для расчёта `dateFrom` используется **UTC+3** как московское время без зависимости от системной базы IANA/tzdata), `flag=0` (записи с `lastChangeDate` ≥ `dateFrom`). Seller Analytics `POST .../sales-funnel/products` для Stock Monitor **не** используется из‑за жёсткого глобального лимитера (частые 429). Ответ Statistics — массив заказов; при необходимости допускается пагинация по `lastChangeDate` последней строки (лимит ~80k строк на запрос). Окна **7 / 14 / 30** дней считаются **локально** по моменту заказа: поле **`date`**, при отсутствии — **`lastChangeDate`**; строки с **`isCancel`: true** не учитываются. Ключ SKU для агрегации: **`vendorCode`**, иначе **`supplierArticle`**, иначе **`nmId`** — тот же приоритет, что и при разборе строк остатков в `wb_stock_client.py`. Для доступа к Statistics нужна категория токена **Statistics** (отдельно от Analytics).
+
 ## Формула
 - avg_7 = orders_7 / 7
 - avg_14 = orders_14 / 14
