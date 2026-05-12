@@ -25,6 +25,7 @@ Hybrid:
 - Keep docs updated after each completed step
 
 ## Last completed milestone
+- Stock Monitor: `STOCK_MONITOR_USE_TEST_FALLBACK` (дефолт `false`) — тестовые данные Ozon/WB не подставляются без явного включения; при отказе — лог `… test fallback disabled`, production не получает отчёт на тестовых остатках/заказах. Ранее: при реальных остатках WB без заказов не подмешиваются тестовые заказы (`WB stock loaded but orders unavailable; skipping WB stock-days analysis`); WB orders при 429 — `WB orders rate limit hit; skipping WB orders for this run` без лишних окон.
 - Пороги алертов вынесены в .env: 'LAST_PRICE_ALERT_THRESHOLD_PERCENT', 'DAY_START_ALERT_THRESHOLD_PERCENT', `ALERT_COOLDOWN_MINUTES`, `MAX_ALERT_CHANGE_PERCENT` (дефолты: 10, 20, 60, 100); при отсутствии или неверном значении используется дефолт.
 - Стартовое уведомление в Telegram: одно сообщение в начале запуска (время, число аккаунтов), если аккаунты есть и Telegram настроен; при ошибке отправки — только лог.
 - Опциональный итог запуска в Telegram: переменная `SEND_RUN_SUMMARY=true` включает отправку сводки в конце запуска; по умолчанию отключено.

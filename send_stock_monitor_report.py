@@ -57,20 +57,40 @@ def _normalize_account_id(name):
 
 
 def _get_data_for_account(
-    account_id, marketplace, client_id=None, api_key=None, wb_enabled=False
+    account_id,
+    marketplace,
+    client_id=None,
+    api_key=None,
+    wb_enabled=False,
+    use_test_fallback=False,
 ):
     if marketplace == "ozon" and account_id in {"ozon_1", "ozon_2"}:
         stocks, stock_meta = get_ozon_stocks(client_id, api_key, return_meta=True)
         orders = get_ozon_orders(client_id, api_key)
         if not stocks:
-            if stock_meta.get("api_failed"):
-                logging.warning("Ozon real stock API failed; using test fallback")
+            if use_test_fallback:
+                if stock_meta.get("api_failed"):
+                    logging.warning("Ozon real stock API failed; using test fallback")
+                else:
+                    logging.warning("Ozon real stock API failed; stock rows empty")
+                stocks = get_test_ozon_stocks(account_id)
             else:
-                logging.warning("Ozon real stock API failed; stock rows empty")
-            stocks = get_test_ozon_stocks(account_id)
+                if stock_meta.get("api_failed"):
+                    logging.warning("Ozon real stock API failed; test fallback disabled")
+                else:
+                    logging.warning("Ozon stock rows empty; test fallback disabled")
         if not orders:
-            logging.warning("Ozon API unavailable or empty for %s; using test orders fallback", account_id)
-            orders = get_test_ozon_orders(account_id)
+            if use_test_fallback:
+                logging.warning(
+                    "Ozon API unavailable or empty for %s; using test orders fallback",
+                    account_id,
+                )
+                orders = get_test_ozon_orders(account_id)
+            else:
+                logging.warning(
+                    "Ozon orders unavailable or empty for %s; test fallback disabled",
+                    account_id,
+                )
         return stocks, orders
     if marketplace == "wildberries" and account_id == "wb_1":
         if not wb_enabled:
@@ -80,12 +100,21 @@ def _get_data_for_account(
         orders = get_wb_orders(api_key)
         logging.info("WB stock rows loaded=%s", len(stocks))
         logging.info("WB order rows loaded=%s", len(orders))
-        if not stocks or not orders:
-            logging.warning("WB real API failed; using test fallback")
-            if not stocks:
+        stock_n = len(stocks)
+        order_n = len(orders)
+        if stock_n > 0 and order_n == 0:
+            logging.warning(
+                "WB stock loaded but orders unavailable; skipping WB stock-days analysis"
+            )
+            return [], {}
+        if stock_n == 0 and order_n == 0:
+            if use_test_fallback:
+                logging.warning("WB real API failed; using test fallback")
                 stocks = get_test_wb_stocks(account_id)
-            if not orders:
                 orders = get_test_wb_orders(account_id)
+            else:
+                logging.warning("WB real API failed; test fallback disabled")
+                return [], {}
         return stocks, orders
     return [], {}
 
@@ -146,7 +175,9 @@ def main():
         "STOCK_MONITOR_MIN_AVG_DAILY_ORDERS", DEFAULT_MIN_AVG_DAILY_ORDERS
     )
     wb_enabled = _bool_env("STOCK_MONITOR_WB_ENABLED", False)
+    use_test_fallback = _bool_env("STOCK_MONITOR_USE_TEST_FALLBACK", False)
     logging.info("Stock Monitor WB enabled=%s", wb_enabled)
+    logging.info("Stock Monitor USE_TEST_FALLBACK=%s", use_test_fallback)
 
     all_rows = []
     problematic_rows = []
@@ -164,6 +195,7 @@ def main():
             client_id=acc.get("client_id"),
             api_key=acc.get("api_key"),
             wb_enabled=wb_enabled,
+            use_test_fallback=use_test_fallback,
         )
         logging.info(
             "Stock Monitor source loaded: account=%s marketplace=%s stock_rows=%s order_rows=%s",

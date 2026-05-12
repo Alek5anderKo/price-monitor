@@ -38,6 +38,8 @@ At the start:
 - read relevant code files
 
 Future:
+- ~~Stock Monitor: `STOCK_MONITOR_USE_TEST_FALLBACK` по умолчанию false (Ozon/WB без тестовых подстановок в production)~~
+- ~~Stock Monitor WB: без смешения реальных остатков с тестовыми заказами при недоступных заказах; 429 sales-funnel без лишних ретраев и окон~~
 - добавить поддержку нескольких маркетплейсов (Ozon #2, дополнительные аккаунты WB)
 - возможно внедрить adapter layer для marketplace API
 - **Wildberries:** пагинация cards/list и чанки nmList для цен реализованы. Дальше: мониторинг остатков, учёт лимитов/rate limit, стабильность API

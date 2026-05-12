@@ -11,7 +11,6 @@ WB_SALES_FUNNEL_URL = "https://seller-analytics-api.wildberries.ru/api/analytics
 API_TIMEOUT = 30
 MAX_RETRIES = 3
 RETRY_DELAY = 2
-RETRY_BACKOFF_429 = [20, 40, 60]
 WINDOW_REQUEST_DELAY_SECONDS = 20
 
 
@@ -23,7 +22,11 @@ def _iso_date(dt):
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%d")
 
 
-def _post_json_with_retries(url, headers, payload):
+def _post_sales_funnel_json(url, headers, payload):
+    """
+    POST to sales-funnel/products. On 429: no retries (attempts 2–3 skipped), returns (None, True).
+    On other HTTP errors / exceptions: up to MAX_RETRIES with delay.
+    """
     endpoint_path = urlparse(url).path
     for attempt in range(1, MAX_RETRIES + 1):
         status_code = None
@@ -31,13 +34,14 @@ def _post_json_with_retries(url, headers, payload):
             response = requests.post(url, json=payload, headers=headers, timeout=API_TIMEOUT)
             status_code = response.status_code
             if response.status_code == 200:
-                return response.json()
+                return response.json(), False
+            if response.status_code == 429:
+                logger.warning("WB orders rate limit hit; skipping WB orders for this run")
+                return None, True
             response_text_short = (response.text or "").strip().replace("\n", " ")[:500]
             hint = ""
             if response.status_code == 403:
                 hint = " likely token permissions issue; check WB token categories and token type"
-            elif response.status_code == 429:
-                hint = " rate limit; retry delayed or skipped"
             elif response.status_code == 400:
                 hint = " invalid request payload"
             elif response.status_code == 404:
@@ -60,11 +64,8 @@ def _post_json_with_retries(url, headers, payload):
                 e,
             )
         if attempt < MAX_RETRIES:
-            if status_code == 429:
-                time.sleep(RETRY_BACKOFF_429[min(attempt - 1, len(RETRY_BACKOFF_429) - 1)])
-            else:
-                time.sleep(RETRY_DELAY)
-    return None
+            time.sleep(RETRY_DELAY)
+    return None, False
 
 
 def _iter_funnel_rows(data):
@@ -131,13 +132,17 @@ def _load_orders_for_days(api_key, days):
         "limit": 1000,
         "offset": 0,
     }
-    data = _post_json_with_retries(WB_SALES_FUNNEL_URL, _wb_headers(api_key), payload)
+    data, rate_limited = _post_sales_funnel_json(
+        WB_SALES_FUNNEL_URL, _wb_headers(api_key), payload
+    )
+    if rate_limited:
+        return {}, True
     if not isinstance(data, (dict, list)):
-        return {}
+        return {}, False
 
     rows = _iter_funnel_rows(data)
     if not isinstance(rows, list):
-        return {}
+        return {}, False
 
     result = {}
     for row in rows:
@@ -147,23 +152,30 @@ def _load_orders_for_days(api_key, days):
         if not sku:
             continue
         result[sku] = result.get(sku, 0) + _extract_orders_count(row)
-    return result
+    return result, False
 
 
 def get_wb_orders(api_key):
     """
     Real WB orders via sales funnel analytics.
     Returns: {"SKU": {"orders_7": int, "orders_14": int, "orders_30": int}}
+    On HTTP 429 (any window) or missing credentials: returns {} and does not call later windows.
     """
     if not api_key or not str(api_key).strip():
         logger.warning("WB stock monitor: missing API credentials")
         return {}
 
-    orders_7_map = _load_orders_for_days(api_key, 7)
+    orders_7_map, rl = _load_orders_for_days(api_key, 7)
+    if rl:
+        return {}
     time.sleep(WINDOW_REQUEST_DELAY_SECONDS)
-    orders_14_map = _load_orders_for_days(api_key, 14)
+    orders_14_map, rl = _load_orders_for_days(api_key, 14)
+    if rl:
+        return {}
     time.sleep(WINDOW_REQUEST_DELAY_SECONDS)
-    orders_30_map = _load_orders_for_days(api_key, 30)
+    orders_30_map, rl = _load_orders_for_days(api_key, 30)
+    if rl:
+        return {}
 
     all_skus = set(orders_7_map) | set(orders_14_map) | set(orders_30_map)
     result = {}
