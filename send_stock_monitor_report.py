@@ -12,6 +12,7 @@ from clients.wb_stock_client import get_test_wb_stocks, get_wb_stocks
 from database.db import init_db, save_stock_monitor_rows
 from services.config_loader import load_config
 from services.email_notifier import send_email
+from services.run_lock import acquire_lock, release_lock
 from services.stock_monitor_analyzer import build_stock_monitor_rows
 from services.stock_monitor_email_report import (
     build_stock_monitor_email_text,
@@ -161,78 +162,84 @@ def _to_db_tuple(row):
 def main():
     load_dotenv()
     _setup_logging()
+    lock_path = os.path.join("locks", "stock_monitor.lock")
+    try:
+        acquire_lock(lock_path)
 
-    if not _bool_env("STOCK_MONITOR_ENABLED", False):
-        logging.info(
-            "Stock Monitor is disabled by STOCK_MONITOR_ENABLED; script finished without errors"
+        if not _bool_env("STOCK_MONITOR_ENABLED", False):
+            logging.info(
+                "Stock Monitor is disabled by STOCK_MONITOR_ENABLED; script finished without errors"
+            )
+            return
+
+        init_db()
+        accounts = load_config()
+        days_threshold = _float_env("STOCK_MONITOR_DAYS_THRESHOLD", DEFAULT_DAYS_THRESHOLD)
+        min_avg_daily_orders = _float_env(
+            "STOCK_MONITOR_MIN_AVG_DAILY_ORDERS", DEFAULT_MIN_AVG_DAILY_ORDERS
         )
-        return
+        wb_enabled = _bool_env("STOCK_MONITOR_WB_ENABLED", False)
+        use_test_fallback = _bool_env("STOCK_MONITOR_USE_TEST_FALLBACK", False)
+        logging.info("Stock Monitor WB enabled=%s", wb_enabled)
+        logging.info("Stock Monitor USE_TEST_FALLBACK=%s", use_test_fallback)
 
-    init_db()
-    accounts = load_config()
-    days_threshold = _float_env("STOCK_MONITOR_DAYS_THRESHOLD", DEFAULT_DAYS_THRESHOLD)
-    min_avg_daily_orders = _float_env(
-        "STOCK_MONITOR_MIN_AVG_DAILY_ORDERS", DEFAULT_MIN_AVG_DAILY_ORDERS
-    )
-    wb_enabled = _bool_env("STOCK_MONITOR_WB_ENABLED", False)
-    use_test_fallback = _bool_env("STOCK_MONITOR_USE_TEST_FALLBACK", False)
-    logging.info("Stock Monitor WB enabled=%s", wb_enabled)
-    logging.info("Stock Monitor USE_TEST_FALLBACK=%s", use_test_fallback)
+        all_rows = []
+        problematic_rows = []
 
-    all_rows = []
-    problematic_rows = []
+        for acc in accounts:
+            marketplace = acc.get("marketplace")
+            account_name = acc.get("name")
+            account_id = _normalize_account_id(account_name)
+            if account_id not in ALLOWED_ACCOUNT_IDS:
+                continue
 
-    for acc in accounts:
-        marketplace = acc.get("marketplace")
-        account_name = acc.get("name")
-        account_id = _normalize_account_id(account_name)
-        if account_id not in ALLOWED_ACCOUNT_IDS:
-            continue
+            stocks, orders_map = _get_data_for_account(
+                account_id,
+                marketplace,
+                client_id=acc.get("client_id"),
+                api_key=acc.get("api_key"),
+                wb_enabled=wb_enabled,
+                use_test_fallback=use_test_fallback,
+            )
+            logging.info(
+                "Stock Monitor source loaded: account=%s marketplace=%s stock_rows=%s order_rows=%s",
+                account_name,
+                marketplace,
+                len(stocks),
+                len(orders_map),
+            )
+            combined_items = _combine_stock_and_orders(marketplace, account_name, stocks, orders_map)
+            rows_to_save, bad_rows = build_stock_monitor_rows(
+                combined_items,
+                min_avg_daily_orders=min_avg_daily_orders,
+                days_threshold=days_threshold,
+            )
+            all_rows.extend(rows_to_save)
+            problematic_rows.extend(bad_rows)
 
-        stocks, orders_map = _get_data_for_account(
-            account_id,
-            marketplace,
-            client_id=acc.get("client_id"),
-            api_key=acc.get("api_key"),
-            wb_enabled=wb_enabled,
-            use_test_fallback=use_test_fallback,
+        save_stock_monitor_rows([_to_db_tuple(row) for row in all_rows])
+        logging.info("Stock monitor rows saved: %s", len(all_rows))
+
+        if not problematic_rows:
+            logging.info("No problematic items found; email not sent")
+            return
+
+        recipients = normalize_stock_monitor_recipients(os.getenv("STOCK_MONITOR_EMAILS"))
+
+        email_text = build_stock_monitor_email_text(problematic_rows, days_threshold)
+        report_date = datetime.now().strftime("%d.%m.%Y")
+        sent = send_email(
+            f"Проверка остатков за {report_date}",
+            email_text,
+            recipients=recipients,
         )
-        logging.info(
-            "Stock Monitor source loaded: account=%s marketplace=%s stock_rows=%s order_rows=%s",
-            account_name,
-            marketplace,
-            len(stocks),
-            len(orders_map),
-        )
-        combined_items = _combine_stock_and_orders(marketplace, account_name, stocks, orders_map)
-        rows_to_save, bad_rows = build_stock_monitor_rows(
-            combined_items,
-            min_avg_daily_orders=min_avg_daily_orders,
-            days_threshold=days_threshold,
-        )
-        all_rows.extend(rows_to_save)
-        problematic_rows.extend(bad_rows)
+        if sent:
+            logging.info("Stock monitor email sent")
+        else:
+            logging.warning("Stock monitor email was not delivered")
 
-    save_stock_monitor_rows([_to_db_tuple(row) for row in all_rows])
-    logging.info("Stock monitor rows saved: %s", len(all_rows))
-
-    if not problematic_rows:
-        logging.info("No problematic items found; email not sent")
-        return
-
-    recipients = normalize_stock_monitor_recipients(os.getenv("STOCK_MONITOR_EMAILS"))
-
-    email_text = build_stock_monitor_email_text(problematic_rows, days_threshold)
-    report_date = datetime.now().strftime("%d.%m.%Y")
-    sent = send_email(
-        f"Проверка остатков за {report_date}",
-        email_text,
-        recipients=recipients,
-    )
-    if sent:
-        logging.info("Stock monitor email sent")
-    else:
-        logging.warning("Stock monitor email was not delivered")
+    finally:
+        release_lock(lock_path)
 
 
 if __name__ == "__main__":

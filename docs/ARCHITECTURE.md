@@ -46,7 +46,7 @@ Fields:
 ## Scheduling
 - Regular runs are done by an **external scheduler** (e.g. Windows Task Scheduler, cron). The app has no in-process scheduler: each run executes one pass and exits.
 - At the end of each run a **run summary** is logged (accounts processed/skipped, prices fetched, alerts detected/sent/suppressed).
-- **Overlapping runs**: a simple lock file (`price_monitor.lock`) prevents two instances from running at once. Acquired on start (exclusive create), released in `finally` so it is always removed on normal or error exit. If the process is killed, the file may remain and can be removed manually.
+- **Overlapping runs**: separate lock files under `locks/` prevent two instances of the same entrypoint from running at once (e.g. `locks/price_monitor.lock` for `main.py`, `locks/daily_report.lock`, `locks/stock_monitor.lock`, `locks/sales_drop.lock` for the report scripts). Default `acquire_lock()` / `release_lock()` without arguments still use `run.lock` in the project root for backward compatibility. `main.py` acquires the lock before file logging is configured (early duplicate exit); report scripts acquire after `basicConfig`. All release the lock in `finally`. Stale locks older than 30 minutes (`MAX_AGE` in `services/run_lock.py`) are removed on the next acquire attempt. If a process is killed, the file may remain until TTL or manual removal.
 
 ## Reliability and performance
 - **API:** Ozon client uses retries (up to 3 attempts, 2 s delay) and a 20 s timeout; failures are logged and re-raised after last attempt. Telegram notifier uses 20 s timeout.

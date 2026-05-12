@@ -52,11 +52,11 @@ def _setup_logging():
 
 
 def main():
-
-    acquire_lock()
-    _setup_logging()
-
+    lock_path = os.path.join("locks", "price_monitor.lock")
     try:
+        acquire_lock(lock_path)
+        _setup_logging()
+
         init_db()
 
         accounts = load_config()
@@ -327,7 +327,7 @@ def main():
                 logging.error("Run summary Telegram notification failed: %s", e)
         logging.info("Run completed")
     finally:
-        release_lock()
+        release_lock(lock_path)
 
 
 if __name__ == "__main__":

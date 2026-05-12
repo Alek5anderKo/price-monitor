@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 from services.daily_report import generate_daily_report_text
 from services.email_notifier import send_email
+from services.run_lock import acquire_lock, release_lock
 
 
 def _bool_env(name, default=False):
@@ -25,28 +26,33 @@ def _setup_logging():
 def main():
     load_dotenv()
     _setup_logging()
+    lock_path = os.path.join("locks", "daily_report.lock")
+    try:
+        acquire_lock(lock_path)
 
-    report_date = datetime.now().strftime("%Y-%m-%d")
-    report_text = generate_daily_report_text(report_date=report_date)
-    logging.info("Daily report generated for date %s", report_date)
+        report_date = datetime.now().strftime("%Y-%m-%d")
+        report_text = generate_daily_report_text(report_date=report_date)
+        logging.info("Daily report generated for date %s", report_date)
 
-    if not _bool_env("SEND_DAILY_REPORT_EMAIL", False):
-        logging.info("SEND_DAILY_REPORT_EMAIL=false; report was generated but not sent")
-        return
+        if not _bool_env("SEND_DAILY_REPORT_EMAIL", False):
+            logging.info("SEND_DAILY_REPORT_EMAIL=false; report was generated but not sent")
+            return
 
-    email_to_reports = os.getenv("EMAIL_TO_REPORTS") or ""
-    if not str(email_to_reports).strip():
-        email_to_reports = os.getenv("EMAIL_TO") or ""
+        email_to_reports = os.getenv("EMAIL_TO_REPORTS") or ""
+        if not str(email_to_reports).strip():
+            email_to_reports = os.getenv("EMAIL_TO") or ""
 
-    sent = send_email(
-        f"Ежедневный отчет за {report_date}",
-        report_text,
-        recipients=email_to_reports,
-    )
-    if sent:
-        logging.info("Daily report email sent")
-    else:
-        logging.warning("Daily report email was not delivered")
+        sent = send_email(
+            f"Ежедневный отчет за {report_date}",
+            report_text,
+            recipients=email_to_reports,
+        )
+        if sent:
+            logging.info("Daily report email sent")
+        else:
+            logging.warning("Daily report email was not delivered")
+    finally:
+        release_lock(lock_path)
 
 
 if __name__ == "__main__":

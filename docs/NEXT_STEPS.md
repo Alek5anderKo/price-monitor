@@ -38,6 +38,7 @@ At the start:
 - read relevant code files
 
 Future:
+- ~~Per-script locks в `locks/` для main и отчётных скриптов~~
 - ~~Stock Monitor WB orders: Statistics API `/api/v1/supplier/orders` вместо sales-funnel (429)~~
 - ~~Stock Monitor: `STOCK_MONITOR_USE_TEST_FALLBACK` по умолчанию false (Ozon/WB без тестовых подстановок в production)~~
 - ~~Stock Monitor WB: без смешения реальных остатков с тестовыми заказами при недоступных заказах; 429 sales-funnel без лишних ретраев и окон~~

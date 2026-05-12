@@ -25,6 +25,7 @@ Hybrid:
 - Keep docs updated after each completed step
 
 ## Last completed milestone
+- Per-script lock-файлы в `locks/` для `main.py` и отчётных entrypoints (`daily_report`, `stock_monitor`, `sales_drop`); `services/run_lock.py` принимает `lock_file`, по умолчанию — `run.lock` (обратная совместимость); каталог `locks/` создаётся при необходимости; `.gitignore` — `locks/` и `run.lock`.
 - Stock Monitor WB: остатки — Seller Analytics stocks-report; **заказы** — Statistics API `GET /api/v1/supplier/orders` (локально orders_7/14/30 из ~30 дней; sales-funnel не используется из‑за 429). В `wb_stock_client` для SKU учтён `supplierArticle` после `vendorCode`, как в заказах. `STOCK_MONITOR_USE_TEST_FALLBACK` по умолчанию `false`; при реальных остатках WB без заказов — без тестового смешения (`WB stock loaded but orders unavailable; skipping WB stock-days analysis`).
 - Пороги алертов вынесены в .env: 'LAST_PRICE_ALERT_THRESHOLD_PERCENT', 'DAY_START_ALERT_THRESHOLD_PERCENT', `ALERT_COOLDOWN_MINUTES`, `MAX_ALERT_CHANGE_PERCENT` (дефолты: 10, 20, 60, 100); при отсутствии или неверном значении используется дефолт.
 - Стартовое уведомление в Telegram: одно сообщение в начале запуска (время, число аккаунтов), если аккаунты есть и Telegram настроен; при ошибке отправки — только лог.

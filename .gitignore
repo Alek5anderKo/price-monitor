@@ -22,6 +22,7 @@ logs/
 prices.db
 cache_sku.json
 diff.txt
-price_monitor.lock
 alert_state.json
 run_monitor.bat
+locks/
+run.lock
