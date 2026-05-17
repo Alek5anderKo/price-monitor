@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 from services.daily_report import generate_daily_report_text
 from services.email_notifier import send_email
+from services.email_subject import dated_subject
 from services.run_lock import acquire_lock, release_lock
 
 
@@ -43,7 +44,7 @@ def main():
             email_to_reports = os.getenv("EMAIL_TO") or ""
 
         sent = send_email(
-            f"Ежедневный отчет за {report_date}",
+            dated_subject("Ежедневный отчет", report_date),
             report_text,
             recipients=email_to_reports,
         )
