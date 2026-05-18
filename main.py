@@ -16,7 +16,7 @@ from services.email_notifier import send_email
 from services.alert_state import should_send_alert, update_alert_state
 from services.run_lock import acquire_lock, release_lock
 from services.account_display import get_account_display_name
-from services.wb_sku_display import WbSkuDisplayMapper
+from services.wb_sku_display import WbSkuDisplayMapper, format_alert_for_display
 
 MARKETPLACE_OZON = "ozon"
 MARKETPLACE_WILDBERIES = "wildberries"
@@ -125,20 +125,33 @@ def main():
                     alerts = analyze_prices(marketplace, name, prices)
                     if alerts:
                         stats["alerts_detected_total"] += len(alerts)
-                        logging.warning("PRICE ALERTS FOUND: %s", len(alerts))
+                        display_alert_skus = [
+                            wb_sku_mapper.display_sku(name, a["sku"], marketplace) for a in alerts
+                        ]
+                        logging.warning(
+                            "PRICE ALERTS FOUND: %s (%s)",
+                            len(alerts),
+                            ", ".join(display_alert_skus),
+                        )
                         for alert in alerts:
-                            logging.info("Alert: %s", alert)
                             sku = alert["sku"]
+                            display_sku = wb_sku_mapper.display_sku(name, sku, marketplace)
+                            logging.info(
+                                "Alert: %s",
+                                format_alert_for_display(alert, wb_sku_mapper, name, marketplace),
+                            )
                             new_price = alert["new_price"]
                             if not should_send_alert(marketplace, name, sku, new_price):
                                 stats["alerts_suppressed_total"] += 1
                                 continue
                             if DRY_RUN:
-                                logging.info("DRY RUN: alert detected but not sent")
+                                logging.info(
+                                    "DRY RUN: alert detected but not sent (SKU %s)",
+                                    display_sku,
+                                )
                                 continue
                             old_price = alert["old_price"]
                             change = alert["change"]
-                            display_sku = wb_sku_mapper.display_sku(name, sku, marketplace)
                             message = (
                                 "Здравствуйте!\n\n"
                                 "Обнаружено изменение цены.\n\n"

@@ -36,3 +36,12 @@ class WbSkuDisplayMapper:
         if marketplace != MARKETPLACE_WILDBERIES:
             return str(sku)
         return display_wb_sku(sku, self._by_account.get(account) or {})
+
+
+def format_alert_for_display(alert, mapper, account, marketplace):
+    """Alert dict copy with display sku for logs (WB only; raw sku unchanged in source)."""
+    if marketplace != MARKETPLACE_WILDBERIES or not isinstance(alert, dict):
+        return alert
+    shown = dict(alert)
+    shown["sku"] = mapper.display_sku(account, alert.get("sku"), marketplace)
+    return shown
