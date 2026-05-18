@@ -6,6 +6,8 @@ from email.message import EmailMessage
 
 from dotenv import load_dotenv
 
+from services.email_subject import compose_email_subject
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -75,7 +77,7 @@ def send_email(subject, body, recipients=None):
         logger.error("Invalid EMAIL_SMTP_PORT value: %s", smtp_port_raw)
         return False
 
-    email_subject = f"{subject_prefix} {subject}".strip() if subject_prefix else subject
+    email_subject = compose_email_subject(subject_prefix, subject) if subject_prefix else (subject or "").strip()
     msg = EmailMessage()
     msg["Subject"] = email_subject
     msg["From"] = email_from

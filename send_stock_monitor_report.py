@@ -12,7 +12,7 @@ from clients.wb_stock_client import get_test_wb_stocks, get_wb_stocks
 from database.db import init_db, save_stock_monitor_rows
 from services.config_loader import load_config
 from services.email_notifier import send_email
-from services.email_subject import dated_subject
+from services.email_subject import stock_monitor_subject
 from services.run_lock import acquire_lock, release_lock
 from services.stock_monitor_analyzer import build_stock_monitor_rows
 from services.stock_monitor_email_report import (
@@ -229,8 +229,9 @@ def main():
 
         email_text = build_stock_monitor_email_text(problematic_rows, days_threshold)
         report_date = datetime.now().strftime("%d.%m.%Y")
+        email_subject = stock_monitor_subject(report_date)
         sent = send_email(
-            dated_subject("Проверка остатков", report_date),
+            email_subject,
             email_text,
             recipients=recipients,
         )
