@@ -2,7 +2,8 @@ import logging
 import os
 import smtplib
 import time
-from email.message import EmailMessage
+from email.header import Header
+from email.mime.text import MIMEText
 
 from dotenv import load_dotenv
 
@@ -78,11 +79,10 @@ def send_email(subject, body, recipients=None):
         return False
 
     email_subject = compose_email_subject(subject_prefix, subject) if subject_prefix else (subject or "").strip()
-    msg = EmailMessage()
-    msg["Subject"] = email_subject
+    msg = MIMEText(body or "", "plain", "utf-8")
+    msg["Subject"] = Header(email_subject, "utf-8")
     msg["From"] = email_from
     msg["To"] = ", ".join(recipients)
-    msg.set_content(body or "")
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
