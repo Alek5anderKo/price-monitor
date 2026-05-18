@@ -3,6 +3,8 @@ from datetime import datetime
 
 from database.db import DB_NAME
 from services.account_display import get_account_display_name
+from services.config_loader import MARKETPLACE_WILDBERIES, load_config
+from services.wb_sku_display import WbSkuDisplayMapper
 
 
 def _normalize_report_date(report_date=None):
@@ -126,13 +128,25 @@ def _get_day_changes(conn, date_str):
     return changes
 
 
-def _format_change_row(item, target_price_key, target_change_key):
+def _format_change_row(item, target_price_key, target_change_key, wb_sku_mapper=None):
     account_display = get_account_display_name(item["account"])
+    sku_display = item["sku"]
+    if wb_sku_mapper is not None and item.get("marketplace") == MARKETPLACE_WILDBERIES:
+        sku_display = wb_sku_mapper.display_sku(item["account"], item["sku"], item["marketplace"])
     return (
-        f"- {item['marketplace']} | {account_display} | SKU {item['sku']}: "
+        f"- {item['marketplace']} | {account_display} | SKU {sku_display}: "
         f"{item['first_price']:.2f} -> {item[target_price_key]:.2f} "
         f"({item[target_change_key]:+.2f}%)"
     )
+
+
+def _load_wb_sku_mapper():
+    try:
+        mapper = WbSkuDisplayMapper()
+        mapper.load_from_accounts(load_config())
+        return mapper
+    except Exception:
+        return WbSkuDisplayMapper()
 
 
 def generate_daily_report_text(report_date=None):
@@ -166,6 +180,7 @@ def generate_daily_report_text(report_date=None):
             return "\n".join(lines)
 
         changes = _get_day_changes(conn, date_str)
+        wb_sku_mapper = _load_wb_sku_mapper()
         if not changes:
             lines.append("За выбранную дату данные отсутствуют.")
             lines.append("")
@@ -180,17 +195,17 @@ def generate_daily_report_text(report_date=None):
 
         lines.append("Максимальный рост за день (топ-5):")
         for item in top_growth:
-            lines.append(_format_change_row(item, "max_price", "max_growth_pct"))
+            lines.append(_format_change_row(item, "max_price", "max_growth_pct", wb_sku_mapper))
         lines.append("")
 
         lines.append("Максимальное снижение за день (топ-5):")
         for item in top_drop:
-            lines.append(_format_change_row(item, "min_price", "max_drop_pct"))
+            lines.append(_format_change_row(item, "min_price", "max_drop_pct", wb_sku_mapper))
         lines.append("")
 
         lines.append("Итоговое изменение к концу дня (топ-5 по модулю):")
         for item in top_final_change:
-            lines.append(_format_change_row(item, "last_price", "final_change_pct"))
+            lines.append(_format_change_row(item, "last_price", "final_change_pct", wb_sku_mapper))
         lines.append("")
         lines.append("—")
         lines.append("MP Monitor")

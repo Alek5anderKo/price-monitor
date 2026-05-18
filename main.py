@@ -16,6 +16,7 @@ from services.email_notifier import send_email
 from services.alert_state import should_send_alert, update_alert_state
 from services.run_lock import acquire_lock, release_lock
 from services.account_display import get_account_display_name
+from services.wb_sku_display import WbSkuDisplayMapper
 
 MARKETPLACE_OZON = "ozon"
 MARKETPLACE_WILDBERIES = "wildberries"
@@ -61,6 +62,8 @@ def main():
 
         accounts = load_config()
         validate_configuration(accounts)
+        wb_sku_mapper = WbSkuDisplayMapper()
+        wb_sku_mapper.load_from_accounts(accounts)
         DRY_RUN = _bool_env("DRY_RUN", False)
         SEND_TELEGRAM_ALERTS = _bool_env("SEND_TELEGRAM_ALERTS", True)
         SEND_EMAIL_ALERTS = _bool_env("SEND_EMAIL_ALERTS", False)
@@ -135,12 +138,13 @@ def main():
                                 continue
                             old_price = alert["old_price"]
                             change = alert["change"]
+                            display_sku = wb_sku_mapper.display_sku(name, sku, marketplace)
                             message = (
                                 "Здравствуйте!\n\n"
                                 "Обнаружено изменение цены.\n\n"
                                 f"Маркетплейс: {marketplace}\n"
                                 f"Аккаунт: {name}\n"
-                                f"SKU: {sku}\n\n"
+                                f"SKU: {display_sku}\n\n"
                                 f"Цена была: {old_price}\n"
                                 f"Цена стала: {new_price}\n"
                                 f"Изменение: {round(change, 2)}%\n\n"
@@ -158,7 +162,7 @@ def main():
                                     sent_any = True
                             if SEND_EMAIL_ALERTS:
                                 if send_email(
-                                    f"Изменение цены: {marketplace} | {sku} | {round(change, 1)}%",
+                                    f"Изменение цены: {marketplace} | {display_sku} | {round(change, 1)}%",
                                     email_message,
                                     recipients=EMAIL_TO_ALERTS,
                                 ):
