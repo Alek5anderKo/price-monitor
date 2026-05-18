@@ -125,6 +125,95 @@ def get_products(api_key):
     return list(all_products.values())
 
 
+def _extract_card_vendor_article(card):
+    """vendorCode / supplierArticle from a Content API card (not nmID)."""
+    if not isinstance(card, dict):
+        return None
+    for key in ("vendorCode", "supplierArticle"):
+        val = card.get(key)
+        if val is not None and str(val).strip():
+            return str(val).strip()
+    return None
+
+
+def get_nm_to_article_map(api_key):
+    """
+    Build nmID (str) -> vendor article from Content API cards/list (Promotion scope).
+    Same cards source as Price Monitor get_products().
+    """
+    if not api_key or not str(api_key).strip():
+        return {}
+
+    headers = {"Authorization": api_key or ""}
+    mapping = {}
+    cursor_updated_at = None
+    cursor_nm_id = None
+    page = 1
+
+    while True:
+        payload = _build_cards_payload(cursor_updated_at, cursor_nm_id)
+        data = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                resp = requests.post(
+                    CONTENT_CARDS_URL,
+                    json=payload,
+                    headers=headers,
+                    timeout=API_TIMEOUT,
+                )
+                if resp.status_code != 200:
+                    if attempt == MAX_RETRIES - 1:
+                        logger.warning(
+                            "WB cards map: request failed status=%s",
+                            resp.status_code,
+                        )
+                        return mapping
+                    time.sleep(RETRY_DELAY)
+                    continue
+                data = resp.json()
+                break
+            except requests.RequestException as e:
+                if attempt == MAX_RETRIES - 1:
+                    logger.warning("WB cards map: request exception: %s", e)
+                    return mapping
+                time.sleep(RETRY_DELAY)
+
+        cards = data.get("cards") if isinstance(data, dict) else None
+        if not isinstance(cards, list):
+            logger.warning("WB cards map: unexpected response")
+            break
+
+        for card in cards:
+            if not isinstance(card, dict):
+                continue
+            nm_id = card.get("nmID")
+            if nm_id is None:
+                continue
+            article = _extract_card_vendor_article(card)
+            if article:
+                mapping[str(nm_id)] = article
+
+        logger.info(
+            "WB cards map page %d: cards=%s mapped_total=%s",
+            page,
+            len(cards),
+            len(mapping),
+        )
+
+        if len(cards) < CARDS_PAGE_LIMIT:
+            break
+
+        cursor = data.get("cursor") if isinstance(data, dict) else {}
+        cursor_updated_at = cursor.get("updatedAt")
+        cursor_nm_id = cursor.get("nmID")
+        if cursor_updated_at is None or cursor_nm_id is None:
+            break
+        page += 1
+
+    logger.info("WB nmId->article map loaded: %s entries", len(mapping))
+    return mapping
+
+
 def _extract_list_goods(data):
     """Extract listGoods from WB prices API response. Returns list or None."""
     if not isinstance(data, dict):

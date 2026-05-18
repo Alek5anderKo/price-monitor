@@ -104,9 +104,18 @@ def _get_data_for_account(
         logging.info("WB order rows loaded=%s", len(orders))
         stock_n = len(stocks)
         order_n = len(orders)
+        stock_keys = {str(item.get("sku")) for item in stocks if item.get("sku") is not None}
+        order_keys = set(orders.keys())
+        intersection_n = len(stock_keys & order_keys)
+        logging.info("WB stock/order SKU intersection=%s", intersection_n)
         if stock_n > 0 and order_n == 0:
             logging.warning(
                 "WB stock loaded but orders unavailable; skipping WB stock-days analysis"
+            )
+            return [], {}
+        if stock_n > 0 and order_n > 0 and intersection_n == 0:
+            logging.warning(
+                "WB stock and orders loaded but SKU keys do not match; skipping WB stock-days analysis"
             )
             return [], {}
         if stock_n == 0 and order_n == 0:

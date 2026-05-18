@@ -4,6 +4,8 @@ from urllib.parse import urlparse
 
 import requests
 
+from clients.wb_client import get_nm_to_article_map
+
 logger = logging.getLogger(__name__)
 
 WB_STOCKS_URL = "https://seller-analytics-api.wildberries.ru/api/analytics/v1/stocks-report/wb-warehouses"
@@ -78,14 +80,22 @@ def _iter_stock_rows(data):
     return []
 
 
-def _extract_sku(row):
+def _log_sample_stock_row_keys(row):
+    """Log field names from one stocks row (no token/headers/values)."""
+    if not isinstance(row, dict) or not row:
+        return
+    logger.info("WB stocks sample row keys: %s", sorted(row.keys()))
+    for field in ("vendorCode", "supplierArticle", "nmId", "nmID"):
+        if field in row:
+            logger.info("WB stocks sample has field: %s", field)
+
+
+def _extract_vendor_article(row):
+    """vendorCode / supplierArticle only (same priority as orders client)."""
     for key in ("vendorCode", "supplierArticle"):
         val = row.get(key)
         if val is not None and str(val).strip():
             return str(val).strip()
-    nm_id = row.get("nmId") or row.get("nmID")
-    if nm_id is not None:
-        return str(nm_id)
     return None
 
 
@@ -110,9 +120,18 @@ def _extract_stock_value(row):
     return 0
 
 
+def _merge_stock_bucket(bucket, sku, nm_id, stock_value):
+    if sku not in bucket:
+        bucket[sku] = {"sku": sku, "product_id": nm_id, "current_stock": 0}
+    bucket[sku]["current_stock"] += stock_value
+    if bucket[sku]["product_id"] is None and nm_id is not None:
+        bucket[sku]["product_id"] = nm_id
+
+
 def get_wb_stocks(api_key):
     """
-    Real WB stocks (FBO), aggregated by SKU (vendorCode or nmId).
+    Real WB stocks (FBO), aggregated by vendor article SKU (GG001 / FF225 …).
+    product_id is always nmId. Uses Content API cards map when stocks rows only have nmId.
     Returns: [{"sku": str, "product_id": nmId, "current_stock": int}, ...]
     """
     if not api_key or not str(api_key).strip():
@@ -130,19 +149,50 @@ def get_wb_stocks(api_key):
         return []
 
     aggregated = {}
+    nm_id_buckets = {}
+    sample_logged = False
+
     for row in rows:
         if not isinstance(row, dict):
             continue
-        sku = _extract_sku(row)
-        if not sku:
-            continue
+        if not sample_logged:
+            _log_sample_stock_row_keys(row)
+            sample_logged = True
+
         nm_id = _extract_nm_id(row)
         stock_value = max(0, _extract_stock_value(row))
-        if sku not in aggregated:
-            aggregated[sku] = {"sku": sku, "product_id": nm_id, "current_stock": 0}
-        aggregated[sku]["current_stock"] += stock_value
-        if aggregated[sku]["product_id"] is None and nm_id is not None:
-            aggregated[sku]["product_id"] = nm_id
+        if nm_id is None and stock_value <= 0:
+            continue
+
+        article = _extract_vendor_article(row)
+        if article:
+            _merge_stock_bucket(aggregated, article, nm_id, stock_value)
+        elif nm_id is not None:
+            _merge_stock_bucket(nm_id_buckets, str(nm_id), nm_id, stock_value)
+        else:
+            continue
+
+    if nm_id_buckets:
+        article_map = get_nm_to_article_map(api_key)
+        mapped = 0
+        unmapped = 0
+        for nm_key, item in nm_id_buckets.items():
+            article = article_map.get(nm_key)
+            if article:
+                mapped += 1
+                _merge_stock_bucket(
+                    aggregated,
+                    article,
+                    item.get("product_id"),
+                    item["current_stock"],
+                )
+            else:
+                unmapped += 1
+        logger.info(
+            "WB stock nmId->article applied: mapped=%s unmapped=%s (source=Content API cards/list)",
+            mapped,
+            unmapped,
+        )
 
     result = list(aggregated.values())
     logger.info("WB stock rows loaded=%s", len(result))
