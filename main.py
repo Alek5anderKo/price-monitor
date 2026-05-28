@@ -15,7 +15,10 @@ from services.telegram_notifier import send_telegram_alert
 from services.email_notifier import send_email
 from services.alert_state import should_send_alert, update_alert_state
 from services.run_lock import acquire_lock, release_lock
-from services.account_display import get_account_display_name
+from services.price_alert_email_digest import (
+    build_price_alert_digest_text,
+    price_alert_digest_subject,
+)
 from services.wb_sku_display import WbSkuDisplayMapper, format_alert_for_display
 
 MARKETPLACE_OZON = "ozon"
@@ -32,6 +35,96 @@ def _bool_env(name, default=False):
     if v is None:
         return default
     return str(v).strip().lower() in ("true", "1", "yes", "on")
+
+
+def _build_telegram_alert_message(marketplace, account_name, display_sku, old_price, new_price, change):
+    return (
+        "Здравствуйте!\n\n"
+        "Обнаружено изменение цены.\n\n"
+        f"Маркетплейс: {marketplace}\n"
+        f"Аккаунт: {account_name}\n"
+        f"SKU: {display_sku}\n\n"
+        f"Цена была: {old_price}\n"
+        f"Цена стала: {new_price}\n"
+        f"Изменение: {round(change, 2)}%\n\n"
+        "Рекомендуем проверить цену в личном кабинете.\n\n"
+        "Это автоматическое уведомление Price Monitor."
+    )
+
+
+def _dispatch_price_alert(
+    alert,
+    marketplace,
+    account_name,
+    display_sku,
+    *,
+    send_telegram_alerts,
+    send_email_alerts,
+    dry_run,
+    email_digest_items,
+    stats,
+):
+    """
+    Send per-alert Telegram; queue email digest row. Cooldown on Telegram or after digest.
+  """
+    sku = alert["sku"]
+    new_price = alert["new_price"]
+    old_price = alert["old_price"]
+    change = alert["change"]
+    alert_type = alert.get("type") or "last_price"
+
+    telegram_message = _build_telegram_alert_message(
+        marketplace, account_name, display_sku, old_price, new_price, change
+    )
+    telegram_sent = False
+    if send_telegram_alerts and not dry_run:
+        if send_telegram_alert(telegram_message):
+            telegram_sent = True
+
+    if send_email_alerts and not dry_run:
+        email_digest_items.append(
+            {
+                "marketplace": marketplace,
+                "account": account_name,
+                "display_sku": display_sku,
+                "old_price": old_price,
+                "new_price": new_price,
+                "change": change,
+                "type": alert_type,
+                "sku": sku,
+                "cooldown_updated": telegram_sent,
+            }
+        )
+
+    if telegram_sent:
+        update_alert_state(marketplace, account_name, sku, new_price)
+        stats["alerts_sent_total"] += 1
+    elif not send_email_alerts:
+        logging.info("Alert was not delivered by enabled channels")
+
+
+def _send_price_alert_email_digest(email_digest_items, run_started_at, recipients, stats):
+    if not email_digest_items:
+        return False
+    body = build_price_alert_digest_text(email_digest_items)
+    subject = price_alert_digest_subject(run_started_at)
+    if not send_email(subject, body, recipients=recipients):
+        return False
+    for item in email_digest_items:
+        if item.get("cooldown_updated"):
+            continue
+        update_alert_state(
+            item["marketplace"],
+            item["account"],
+            item["sku"],
+            item["new_price"],
+        )
+        stats["alerts_sent_total"] += 1
+    logging.info(
+        "Price alert email digest sent: alerts=%s",
+        len(email_digest_items),
+    )
+    return True
 
 
 def _setup_logging():
@@ -64,6 +157,8 @@ def main():
         validate_configuration(accounts)
         wb_sku_mapper = WbSkuDisplayMapper()
         wb_sku_mapper.load_from_accounts(accounts)
+        run_started_at = datetime.now()
+        email_digest_items = []
         DRY_RUN = _bool_env("DRY_RUN", False)
         SEND_TELEGRAM_ALERTS = _bool_env("SEND_TELEGRAM_ALERTS", True)
         SEND_EMAIL_ALERTS = _bool_env("SEND_EMAIL_ALERTS", False)
@@ -150,41 +245,17 @@ def main():
                                     display_sku,
                                 )
                                 continue
-                            old_price = alert["old_price"]
-                            change = alert["change"]
-                            message = (
-                                "Здравствуйте!\n\n"
-                                "Обнаружено изменение цены.\n\n"
-                                f"Маркетплейс: {marketplace}\n"
-                                f"Аккаунт: {name}\n"
-                                f"SKU: {display_sku}\n\n"
-                                f"Цена была: {old_price}\n"
-                                f"Цена стала: {new_price}\n"
-                                f"Изменение: {round(change, 2)}%\n\n"
-                                "Рекомендуем проверить цену в личном кабинете.\n\n"
-                                "Это автоматическое уведомление Price Monitor."
+                            _dispatch_price_alert(
+                                alert,
+                                marketplace,
+                                name,
+                                display_sku,
+                                send_telegram_alerts=SEND_TELEGRAM_ALERTS,
+                                send_email_alerts=SEND_EMAIL_ALERTS,
+                                dry_run=DRY_RUN,
+                                email_digest_items=email_digest_items,
+                                stats=stats,
                             )
-                            account_display = get_account_display_name(name)
-                            email_message = (
-                                message.replace(f"Аккаунт: {name}", f"Аккаунт: {account_display}")
-                                .replace("Это автоматическое уведомление Price Monitor.", "Это автоматическое уведомление MP Monitor.")
-                            )
-                            sent_any = False
-                            if SEND_TELEGRAM_ALERTS:
-                                if send_telegram_alert(message):
-                                    sent_any = True
-                            if SEND_EMAIL_ALERTS:
-                                if send_email(
-                                    f"Изменение цены: {marketplace} | {display_sku} | {round(change, 1)}%",
-                                    email_message,
-                                    recipients=EMAIL_TO_ALERTS,
-                                ):
-                                    sent_any = True
-                            if sent_any:
-                                update_alert_state(marketplace, name, sku, new_price)
-                                stats["alerts_sent_total"] += 1
-                            else:
-                                logging.info("Alert was not delivered by enabled channels")
                     if not DRY_RUN:
                         save_prices(marketplace, name, prices)
                         logging.info("Prices saved to database")
@@ -262,41 +333,17 @@ def main():
                         if DRY_RUN:
                             logging.info("DRY RUN: alert detected but not sent")
                             continue
-                        old_price = alert["old_price"]
-                        change = alert["change"]
-                        message = (
-                            "Здравствуйте!\n\n"
-                            "Обнаружено изменение цены.\n\n"
-                            f"Маркетплейс: {marketplace}\n"
-                            f"Аккаунт: {name}\n"
-                            f"SKU: {sku}\n\n"
-                            f"Цена была: {old_price}\n"
-                            f"Цена стала: {new_price}\n"
-                            f"Изменение: {round(change, 2)}%\n\n"
-                            "Рекомендуем проверить цену в личном кабинете.\n\n"
-                            "Это автоматическое уведомление Price Monitor."
+                        _dispatch_price_alert(
+                            alert,
+                            marketplace,
+                            name,
+                            sku,
+                            send_telegram_alerts=SEND_TELEGRAM_ALERTS,
+                            send_email_alerts=SEND_EMAIL_ALERTS,
+                            dry_run=DRY_RUN,
+                            email_digest_items=email_digest_items,
+                            stats=stats,
                         )
-                        account_display = get_account_display_name(name)
-                        email_message = (
-                            message.replace(f"Аккаунт: {name}", f"Аккаунт: {account_display}")
-                            .replace("Это автоматическое уведомление Price Monitor.", "Это автоматическое уведомление MP Monitor.")
-                        )
-                        sent_any = False
-                        if SEND_TELEGRAM_ALERTS:
-                            if send_telegram_alert(message):
-                                sent_any = True
-                        if SEND_EMAIL_ALERTS:
-                            if send_email(
-                                f"Изменение цены: {marketplace} | {sku} | {round(change, 1)}%",
-                                email_message,
-                                recipients=EMAIL_TO_ALERTS,
-                            ):
-                                sent_any = True
-                        if sent_any:
-                            update_alert_state(marketplace, name, sku, new_price)
-                            stats["alerts_sent_total"] += 1
-                        else:
-                            logging.info("Alert was not delivered by enabled channels")
 
                 # сохраняем цены после анализа
                 if not DRY_RUN:
@@ -310,6 +357,14 @@ def main():
                 logging.error("Account %s failed: %s", name, e)
                 stats["accounts_skipped"] += 1
                 continue
+
+        if SEND_EMAIL_ALERTS and not DRY_RUN and email_digest_items:
+            _send_price_alert_email_digest(
+                email_digest_items,
+                run_started_at,
+                EMAIL_TO_ALERTS,
+                stats,
+            )
 
         logging.info(
             "Run summary: accounts_total=%s accounts_processed=%s accounts_skipped=%s "
